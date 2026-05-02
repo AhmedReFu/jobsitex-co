@@ -1,7 +1,11 @@
 import { Ionicons } from '@expo/vector-icons'
 import { NavigationProp, RouteProp, useNavigation, useRoute } from '@react-navigation/native'
+import axios from 'axios'
+import { IPA_BASE } from '@env'
 import React, { useRef, useState } from 'react'
 import {
+    ActivityIndicator,
+    Alert,
     Text,
     TextInput,
     TouchableOpacity,
@@ -15,10 +19,10 @@ const OtpVerification = () => {
     const route = useRoute<RouteProp<AuthStackParamList, 'OtpVerification'>>()
 
     const [otp, setOtp] = useState(['', '', '', ''])
+    const [resending, setResending] = useState(false)
     const inputRefs = useRef<(TextInput | null)[]>([])
 
-    // Get email from navigation params
-    const email = route.params?.email || 'abcd@gmail.com'
+    const email = route.params?.email ?? ''
 
     const handleOtpChange = (value: string, index: number) => {
         if (value && !/^\d+$/.test(value)) return
@@ -31,11 +35,10 @@ const OtpVerification = () => {
             inputRefs.current[index + 1]?.focus()
         }
 
-        // Auto verify if all 4 digits entered
         if (index === 3 && value) {
             const fullOtp = [...newOtp.slice(0, 3), value].join('')
             if (fullOtp.length === 4) {
-                setTimeout(() => handleVerify(), 300)
+                setTimeout(() => handleVerify(fullOtp), 300)
             }
         }
     }
@@ -46,29 +49,32 @@ const OtpVerification = () => {
         }
     }
 
-    const handleResend = () => {
-        console.log('Resend OTP to:', email)
-        setOtp(['', '', '', ''])
-        inputRefs.current[0]?.focus()
-        // API call to resend OTP
-    }
-
-    const handleVerify = () => {
-        const otpCode = otp.join('')
-        if (otpCode.length === 4) {
-            console.log('Verify OTP:', otpCode)
-            // Navigate to CreateNewPassword with email and OTP
-            navigation.navigate('CreateNewPassword', {
-                email: email,
-                otp: otpCode
-            })
-        } else {
-            alert('Please enter complete OTP')
+    const handleResend = async () => {
+        if (!email) return
+        setResending(true)
+        try {
+            await axios.post(
+                `${IPA_BASE}/auth/forgot-password`,
+                { email },
+                { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
+            )
+            setOtp(['', '', '', ''])
+            inputRefs.current[0]?.focus()
+            Alert.alert('Sent', 'A new OTP has been sent to your email.')
+        } catch (err: any) {
+            Alert.alert('Error', err?.response?.data?.message || 'Failed to resend OTP.')
+        } finally {
+            setResending(false)
         }
     }
 
-    const handleBack = () => {
-        navigation.goBack()
+    const handleVerify = (otpOverride?: string) => {
+        const otpCode = otpOverride ?? otp.join('')
+        if (otpCode.length === 4) {
+            navigation.navigate('CreateNewPassword', { email, otp: otpCode })
+        } else {
+            Alert.alert('Incomplete', 'Please enter the complete 4-digit OTP.')
+        }
     }
 
     return (
@@ -76,7 +82,7 @@ const OtpVerification = () => {
             <View className='px-6 flex-1'>
                 {/* Back Button */}
                 <TouchableOpacity
-                    onPress={handleBack}
+                    onPress={() => navigation.goBack()}
                     className='mt-4 mb-8'
                     activeOpacity={0.7}
                 >
@@ -90,8 +96,8 @@ const OtpVerification = () => {
 
                 {/* Description */}
                 <Text className='text-base text-gray-medium text-center mb-8'>
-                    We have sent verification code on{'\n'}
-                    <Text className='text-gray-dark'>{email}</Text>
+                    We have sent a verification code to{'\n'}
+                    <Text className='text-gray-dark font-semibold'>{email}</Text>
                 </Text>
 
                 {/* OTP Input Boxes */}
@@ -99,15 +105,10 @@ const OtpVerification = () => {
                     {otp.map((digit, index) => (
                         <View
                             key={index}
-                            className={`w-16 h-16 rounded-2xl border-2 items-center justify-center ${digit
-                                    ? 'border-primary bg-white'
-                                    : 'bg-white border-gray-200'
-                                }`}
+                            className={`w-16 h-16 rounded-2xl border-2 items-center justify-center ${digit ? 'border-primary bg-white' : 'bg-white border-gray-200'}`}
                         >
                             <TextInput
-                                ref={(ref) => {
-                                    inputRefs.current[index] = ref
-                                }}
+                                ref={(ref) => { inputRefs.current[index] = ref }}
                                 className='text-2xl font-bold text-primary text-center'
                                 value={digit}
                                 onChangeText={(value) => handleOtpChange(value, index)}
@@ -115,11 +116,7 @@ const OtpVerification = () => {
                                 keyboardType='number-pad'
                                 maxLength={1}
                                 selectTextOnFocus
-                                style={{
-                                    width: '100%',
-                                    height: '100%',
-                                    textAlign: 'center'
-                                }}
+                                style={{ width: '100%', height: '100%', textAlign: 'center' }}
                             />
                         </View>
                     ))}
@@ -127,28 +124,25 @@ const OtpVerification = () => {
 
                 {/* Resend Link */}
                 <View className='flex-row justify-center mb-8'>
-                    <Text className='text-gray-medium text-sm'>
-                        Don't receive the OTP?{' '}
-                    </Text>
-                    <TouchableOpacity onPress={handleResend}>
-                        <Text className='text-primary font-semibold text-sm'>
-                            Resend
-                        </Text>
+                    <Text className='text-gray-medium text-sm'>Don't receive the OTP? </Text>
+                    <TouchableOpacity onPress={handleResend} disabled={resending}>
+                        {resending ? (
+                            <ActivityIndicator size="small" color="#4CAF50" />
+                        ) : (
+                            <Text className='text-primary font-semibold text-sm'>Resend</Text>
+                        )}
                     </TouchableOpacity>
                 </View>
 
-                {/* Spacer */}
                 <View className='flex-1' />
 
                 {/* Verify Button */}
                 <TouchableOpacity
-                    onPress={handleVerify}
+                    onPress={() => handleVerify()}
                     className='bg-primary py-5 rounded-2xl mb-8'
                     activeOpacity={0.8}
                 >
-                    <Text className='text-white text-center text-lg font-bold'>
-                        VERIFY
-                    </Text>
+                    <Text className='text-white text-center text-lg font-bold'>VERIFY</Text>
                 </TouchableOpacity>
             </View>
         </SafeAreaView>

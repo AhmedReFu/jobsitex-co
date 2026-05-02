@@ -454,8 +454,8 @@ const DriverHome = () => {
                 return
             }
 
-            const response = await axios.patch(
-                `${API_BASE_URL}${END_POINTS.ACCEPT_JOBS}${job.id}`,
+            const response = await axios.post(
+                `${API_BASE_URL}/jobs/${job.id}/accept`,
                 {},
                 {
                     headers: { Authorization: `Bearer ${token}` },

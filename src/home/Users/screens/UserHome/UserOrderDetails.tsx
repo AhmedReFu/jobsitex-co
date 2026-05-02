@@ -87,63 +87,48 @@ const UserOrderDetails = () => {
     try {
       const token = await AsyncStorage.getItem('vToken')
 
-      const bookingData = {
-        pickupLocation: {
-          address: pickupLocation.address,
-          latitude: pickupLocation.latitude,
-          longitude: pickupLocation.longitude,
-          title: pickupLocation.title
-        },
-        dropoffLocation: {
-          address: dropoffLocation.address,
-          latitude: dropoffLocation.latitude,
-          longitude: dropoffLocation.longitude,
-          title: dropoffLocation.title
-        },
-        truckId: selectedTruck.id,
-        driverId: selectedTruck.driverId,
-        scheduleDate: scheduleDate,
-        scheduleTime: scheduleTime,
-        workNotes: localWorkNotes,
-        routeData: routeData ? {
-          distance: routeData.distance,
-          duration: routeData.duration,
-          polyline: routeData.polyline
-        } : null,
-        estimatedPrice: costBreakdown.total
+      const scheduledAt =
+        scheduleDate && scheduleTime
+          ? new Date(`${scheduleDate}T${scheduleTime}`).toISOString()
+          : undefined
+
+      const jobData: Record<string, any> = {
+        pickupAddress: pickupLocation.address,
+        pickupLat: pickupLocation.latitude,
+        pickupLng: pickupLocation.longitude,
+        dropoffAddress: dropoffLocation.address,
+        dropoffLat: dropoffLocation.latitude,
+        dropoffLng: dropoffLocation.longitude,
+        truckTypeId: selectedTruck.id,
+        workNote: localWorkNotes || undefined,
       }
+      if (selectedTruck.driverId) jobData.targetDriverId = selectedTruck.driverId
+      if (scheduledAt) jobData.scheduledAt = scheduledAt
 
-      console.log(pickupLocation, dropoffLocation);
-
-      // Make API call to create booking
-      //${selectedTruck.name}
       const response = await axios.post(
-        `${IPA_BASE}/api/v1/driver/calculate-fare?pickupLat=${pickupLocation.latitude}&pickupLng=${pickupLocation.longitude}&dropLat=${dropoffLocation.latitude}&dropLng=${dropoffLocation.longitude}&radius=10&vehicleType=Truck`,
-        bookingData,
+        `${IPA_BASE}/jobs`,
+        jobData,
         {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': token ? `Bearer ${token}` : ''
-          }
+          },
+          timeout: 15000,
         }
       )
 
-
-
       if (response.data?.success) {
-
-        console.log(response.data);
-        // Navigate to finding drivers screen with booking ID
-        (navigation as any).navigate("UserFindingDrivers", {
-          bookingId: response.data.data.ride._id,
+        const jobId = response.data.data?._id
+        ;(navigation as any).navigate('UserFindingDrivers', {
+          jobId,
           pickup: pickupLocation,
           dropoff: dropoffLocation,
-          routeData: routeData,
-          selectedTruck: selectedTruck,
-          scheduleDate: scheduleDate,
-          scheduleTime: scheduleTime,
+          routeData,
+          selectedTruck,
+          scheduleDate,
+          scheduleTime,
           workNotes: localWorkNotes,
-          costBreakdown: costBreakdown
+          costBreakdown,
         })
       } else {
         Alert.alert('Error', response.data?.message || 'Failed to create booking')

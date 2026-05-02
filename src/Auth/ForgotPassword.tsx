@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons'
 import { NavigationProp, useNavigation } from '@react-navigation/native'
+import axios from 'axios'
+import { IPA_BASE } from '@env'
 import React, { useState } from 'react'
 import {
     ActivityIndicator,
@@ -17,47 +19,33 @@ const ForgotPassword = () => {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
 
-    const validateEmail = (email: string) => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        return emailRegex.test(email)
-    }
+    const validateEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 
     const handleSendOtp = async () => {
-        // Clear previous error
         setError('')
 
-        // Validate email
         if (!email.trim()) {
             setError('Please enter your email')
             return
         }
-
-        if (!validateEmail(email)) {
+        if (!validateEmail(email.trim())) {
             setError('Please enter a valid email address')
             return
         }
 
         setLoading(true)
-
         try {
-            // API call to send OTP
-            
-            console.log('Sending OTP to:', email)
-
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1500))
-            await (navigation as any).navigate('OtpVerification', { email })
-            
-            // Navigate to OTP verification
-        } catch (err) {
-            setError('Failed to send OTP. Please try again.')
+            await axios.post(
+                `${IPA_BASE}/auth/forgot-password`,
+                { email: email.trim().toLowerCase() },
+                { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
+            )
+            navigation.navigate('OtpVerification', { email: email.trim().toLowerCase() })
+        } catch (err: any) {
+            setError(err?.response?.data?.message || 'Failed to send OTP. Please try again.')
         } finally {
             setLoading(false)
         }
-    }
-
-    const handleBack = () => {
-        navigation.goBack()
     }
 
     return (
@@ -65,7 +53,7 @@ const ForgotPassword = () => {
             <View className='px-6 flex-1'>
                 {/* Back Button */}
                 <TouchableOpacity
-                    onPress={handleBack}
+                    onPress={() => navigation.goBack()}
                     className='mt-4 mb-8'
                     activeOpacity={0.7}
                 >
@@ -84,8 +72,7 @@ const ForgotPassword = () => {
 
                 {/* Email Input */}
                 <View
-                    className={`bg-white rounded-2xl px-4 py-2 flex-row items-center mb-2 border ${error ? 'border-red-500' : 'border-gray-200'
-                        }`}
+                    className={`bg-white rounded-2xl px-4 py-2 flex-row items-center mb-2 border ${error ? 'border-red-500' : 'border-gray-200'}`}
                 >
                     <Ionicons name="mail-outline" size={24} color="#9CA3AF" />
                     <TextInput
@@ -93,21 +80,15 @@ const ForgotPassword = () => {
                         placeholder='Enter your email'
                         placeholderTextColor='#9CA3AF'
                         value={email}
-                        onChangeText={(text) => {
-                            setEmail(text)
-                            setError('') // Clear error on typing
-                        }}
+                        onChangeText={(text) => { setEmail(text); setError('') }}
                         keyboardType='email-address'
                         autoCapitalize='none'
                         editable={!loading}
                     />
                 </View>
 
-                {/* Error Message */}
                 {error ? (
-                    <Text className='text-red-500 text-sm mb-6 ml-1'>
-                        {error}
-                    </Text>
+                    <Text className='text-red-500 text-sm mb-6 ml-1'>{error}</Text>
                 ) : (
                     <View className='mb-8' />
                 )}
@@ -122,9 +103,7 @@ const ForgotPassword = () => {
                     {loading ? (
                         <ActivityIndicator color="white" />
                     ) : (
-                        <Text className='text-white text-center text-lg font-bold'>
-                            SENT OTP
-                        </Text>
+                        <Text className='text-white text-center text-lg font-bold'>SEND OTP</Text>
                     )}
                 </TouchableOpacity>
             </View>

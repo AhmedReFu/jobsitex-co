@@ -193,16 +193,15 @@ export const useNearbyTrucks = () => {
                 radius: radius,
             })
 
-            const response = await axios.post<NearbyDriverResponse>(
-                `${IPA_BASE}/api/v1/driver/nearby-drivers`,
+            const response = await axios.get<NearbyDriverResponse>(
+                `${IPA_BASE}/jobs/nearby-drivers`,
                 {
-                    lat: locationCoords.latitude,
-                    lng: locationCoords.longitude,
-                    radius: radius,
-                },
-                {
+                    params: {
+                        lat: locationCoords.latitude,
+                        lng: locationCoords.longitude,
+                        radiusKm: radius / 1000,
+                    },
                     headers: {
-                        'Content-Type': 'application/json',
                         'Authorization': token ? `Bearer ${token}` : '',
                     },
                     timeout: 15000,
@@ -236,8 +235,8 @@ export const useNearbyTrucks = () => {
         } catch (err: any) {
             console.error('Error fetching nearby trucks:', err.response?.data || err.message)
 
-            if((error as any).response.status === 401) {
-                await signOut();
+            if (err?.response?.status === 401) {
+                await signOut()
             }
 
             if (err.code === 'ECONNABORTED') {

@@ -1,5 +1,5 @@
 // HeadingToPickup.tsx – Full driver ride screen with socket-only status updates
-import { COMPLETE_RIDE, IPA_BASE, JOB_DETAILS } from '@env';
+import { IPA_BASE } from '@env';
 import {
     Entypo,
     Ionicons,
@@ -223,11 +223,10 @@ const HeadingToPickup = () => {
     };
 
     const sendLiveLocation = () => {
-        if (!jobId || !currentCoords) return;
-        driverSocketService.sendLocationUpdate({
-            rideId: jobId,
-            latitude: currentCoords.latitude,
-            longitude: currentCoords.longitude,
+        if (!currentCoords) return;
+        driverSocketService.sendLocation({
+            lat: currentCoords.latitude,
+            lng: currentCoords.longitude,
         });
     };
 
@@ -246,7 +245,7 @@ const HeadingToPickup = () => {
             const token = await AsyncStorage.getItem('vToken');
             if (!token) throw new Error('No token found');
 
-            const res = await axios.get(`${API_BASE_URL}${JOB_DETAILS}${jobId}`, {
+            const res = await axios.get(`${API_BASE_URL}/jobs/${jobId}`, {
                 headers: { Authorization: `Bearer ${token}` },
                 timeout: 15000,
             });
@@ -254,21 +253,7 @@ const HeadingToPickup = () => {
             if (!job) throw new Error('Invalid job data');
             setData(job);
 
-            // Connect socket & join ride
             await driverSocketService.connect();
-            driverSocketService.joinRide(jobId);
-
-            // Listen for backend status updates (optional sync)
-            driverSocketService.onRideStatusUpdate((update: any) => {
-                console.log('Backend status update:', update);
-                if (update.status === 'started' && ridePhaseRef.current !== 'ride_started') {
-                    setRidePhase('ride_started');
-                } else if (update.status === 'completed') {
-                    setRidePhase('completed');
-
-                    navigation.navigate('DriverJobsComplete', { jobId: jobId })
-                }
-            });
 
             const loc = await getCurrentLocation();
             if (loc && job?.pickupLocation?.coordinates) {
@@ -306,41 +291,54 @@ const HeadingToPickup = () => {
             isMountedRef.current = false;
             if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
             locationWatcherRef.current?.remove();
-            if (jobId) driverSocketService.leaveRide(jobId);
             driverSocketService.disconnect();
         };
     }, [fetchJobDetails, jobId]);
 
-    // ========== RIDE ACTIONS – SOCKET ONLY, NO HTTP ==========
-    const handleArrived = () => {
-        if (!currentCoords || !data?._id) return;
+    const advanceJobStatus = async (label: string) => {
+        const token = await AsyncStorage.getItem('vToken');
+        if (!token) throw new Error('Not authenticated');
+        const res = await axios.patch(
+            `${API_BASE_URL}/jobs/${jobId}/status`,
+            {},
+            { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 }
+        );
+        if (!res.data?.success) throw new Error(res.data?.message || `Failed to ${label}`);
+    };
+
+    const handleArrived = async () => {
         if (!isNearPickup) {
             toast.show({ message: `You are ${Math.round(distanceToPickup || 0)}m away. Get closer.`, type: 'warning', style: 'top' });
             return;
         }
-        driverSocketService.driverArrived(data._id);
-        setRidePhase('arrived_at_pickup');
-        toast.show({ message: 'Marked as arrived at pickup!', type: 'success', style: 'top' });
+        setIsActionLoading(true);
+        try {
+            await advanceJobStatus('mark arrived');
+            setRidePhase('arrived_at_pickup');
+            toast.show({ message: 'Marked as arrived at pickup!', type: 'success', style: 'top' });
+        } catch (err: any) {
+            toast.show({ message: err.message || 'Failed to update status', type: 'error', style: 'top' });
+        } finally {
+            setIsActionLoading(false);
+        }
     };
 
     const handleStartRide = () => {
-        Alert.alert('Start Ride', 'Have you picked up the customer?', [
+        Alert.alert('Start Ride', 'Have you loaded the goods?', [
             { text: 'Cancel', style: 'cancel' },
             {
-                text: 'Yes, Start Ride',
+                text: 'Yes, Start',
                 onPress: async () => {
-                    if (!currentCoords || !data?._id) return;
                     setIsActionLoading(true);
                     try {
-                        // ✅ Only socket event – backend updates DB
-                        driverSocketService.startRide(data._id);
+                        await advanceJobStatus('start ride');
                         setRidePhase('ride_started');
-                        if (data?.dropLocation?.coordinates) {
+                        if (currentCoords && data?.dropLocation?.coordinates) {
                             await buildRouteToDropoff(currentCoords);
                         }
                         toast.show({ message: 'Ride started! Heading to dropoff.', type: 'success', style: 'top' });
                     } catch (err: any) {
-                        toast.show({ message: 'Failed to start ride', type: 'error', style: 'top' });
+                        toast.show({ message: err.message || 'Failed to start ride', type: 'error', style: 'top' });
                     } finally {
                         setIsActionLoading(false);
                     }
@@ -350,7 +348,6 @@ const HeadingToPickup = () => {
     };
 
     const handleCompleteRide = async () => {
-        if (!currentCoords || !data?._id) return;
         if (!isNearDropoff) {
             toast.show({
                 message: `You are ${Math.round(distanceToDropoff || 0)}m away. Get closer to complete.`,
@@ -361,61 +358,12 @@ const HeadingToPickup = () => {
         }
         setIsActionLoading(true);
         try {
-            // ✅ Only socket event – backend updates DB
-            driverSocketService.completeRide(data._id);
+            await advanceJobStatus('complete ride');
             setRidePhase('completed');
-            try {
-
-
-                const token = await AsyncStorage.getItem('vToken')
-                if (!token) {
-                    toast.show({
-                        message: 'Authentication failed. Please login again.',
-                        type: 'error',
-                        style: 'top',
-                    })
-                    return
-                }
-
-                const response = await axios.patch(
-                    `${API_BASE_URL}${COMPLETE_RIDE}${jobId}`,
-                    {},
-                    {
-                        headers: { Authorization: `Bearer ${token}` },
-                        timeout: 15000,
-                    }
-                );
-                console.log(response)
-                if (response.data?.success === true) {
-                    toast.show({
-                        message: 'Ride completed successfully!',
-                        type: 'success',
-                        style: 'top',
-                    })
-                    navigation.navigate('DriverJobsComplete', { jobId: '1' })
-                    // Navigate to pickup screen
-                    toast.show({ message: 'Ride completed!', type: 'success', style: 'top' });
-
-                } else {
-                    toast.show({
-                        message: response.data?.message || 'Failed to ride completed',
-                        type: 'error',
-                        style: 'top',
-                    })
-                }
-            } catch (err: any) {
-                console.error('Ride completed error:', err)
-                toast.show({
-                    message: err?.response?.data?.message || 'Something went wrong',
-                    type: 'error',
-                    style: 'top',
-                })
-            } finally {
-
-            }
-
+            toast.show({ message: 'Job completed!', type: 'success', style: 'top' });
+            navigation.navigate('DriverJobsComplete', { jobId });
         } catch (err: any) {
-            toast.show({ message: 'Failed to complete ride', type: 'error', style: 'top' });
+            toast.show({ message: err.message || 'Failed to complete ride', type: 'error', style: 'top' });
         } finally {
             setIsActionLoading(false);
         }

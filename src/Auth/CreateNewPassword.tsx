@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons'
 import { NavigationProp, RouteProp, useNavigation, useRoute } from '@react-navigation/native'
+import axios from 'axios'
+import { IPA_BASE } from '@env'
 import React, { useState } from 'react'
 import {
     ActivityIndicator,
@@ -24,48 +26,35 @@ const CreateNewPassword = () => {
     const [loading, setLoading] = useState(false)
     const [showSuccessModal, setShowSuccessModal] = useState(false)
 
-    // Get email and OTP from params
-    const email = route.params?.email || ''
-    const otp = route.params?.otp || ''
+    const email = route.params?.email ?? ''
+    const otp = route.params?.otp ?? ''
 
     const handleSubmit = async () => {
-        // Clear previous error
         setError('')
 
-        // Validation
         if (!newPassword || !confirmPassword) {
             setError('Please fill in all fields')
             return
         }
-
         if (newPassword.length < 6) {
             setError('Password must be at least 6 characters')
             return
         }
-
         if (newPassword !== confirmPassword) {
             setError('Passwords do not match')
             return
         }
 
         setLoading(true)
-
         try {
-            console.log('Reset password for:', email)
-            console.log('OTP:', otp)
-            console.log('New password:', newPassword)
-
-            // API call to reset password
-            // const response = await resetPassword({ email, otp, newPassword })
-
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1500))
-
-            // Show success modal
+            await axios.post(
+                `${IPA_BASE}/auth/reset-password`,
+                { email, code: otp, newPassword },
+                { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
+            )
             setShowSuccessModal(true)
-
-        } catch (err) {
-            setError('Failed to reset password. Please try again.')
+        } catch (err: any) {
+            setError(err?.response?.data?.message || 'Failed to reset password. Please try again.')
         } finally {
             setLoading(false)
         }
@@ -73,12 +62,7 @@ const CreateNewPassword = () => {
 
     const handleDone = () => {
         setShowSuccessModal(false)
-        // Navigate to sign in
         navigation.navigate('SignIn')
-    }
-
-    const handleBack = () => {
-        navigation.goBack()
     }
 
     return (
@@ -86,7 +70,7 @@ const CreateNewPassword = () => {
             <View className='px-6 flex-1'>
                 {/* Back Button */}
                 <TouchableOpacity
-                    onPress={handleBack}
+                    onPress={() => navigation.goBack()}
                     className='mt-4 mb-8'
                     activeOpacity={0.7}
                 >
@@ -111,10 +95,7 @@ const CreateNewPassword = () => {
                         placeholder='Enter new password'
                         placeholderTextColor='#9CA3AF'
                         value={newPassword}
-                        onChangeText={(text) => {
-                            setNewPassword(text)
-                            setError('')
-                        }}
+                        onChangeText={(text) => { setNewPassword(text); setError('') }}
                         secureTextEntry={!showNewPassword}
                         autoCapitalize='none'
                         editable={!loading}
@@ -133,13 +114,10 @@ const CreateNewPassword = () => {
                     <Ionicons name="lock-closed-outline" size={24} color="#9CA3AF" />
                     <TextInput
                         className='flex-1 ml-3 text-base text-gray-dark'
-                        placeholder='Enter confirm password'
+                        placeholder='Confirm new password'
                         placeholderTextColor='#9CA3AF'
                         value={confirmPassword}
-                        onChangeText={(text) => {
-                            setConfirmPassword(text)
-                            setError('')
-                        }}
+                        onChangeText={(text) => { setConfirmPassword(text); setError('') }}
                         secureTextEntry={!showConfirmPassword}
                         autoCapitalize='none'
                         editable={!loading}
@@ -153,11 +131,8 @@ const CreateNewPassword = () => {
                     </TouchableOpacity>
                 </View>
 
-                {/* Error Message */}
                 {error ? (
-                    <Text className='text-red-500 text-sm mb-6 ml-1'>
-                        {error}
-                    </Text>
+                    <Text className='text-red-500 text-sm mb-6 ml-1'>{error}</Text>
                 ) : (
                     <View className='mb-8' />
                 )}
@@ -172,19 +147,16 @@ const CreateNewPassword = () => {
                     {loading ? (
                         <ActivityIndicator color="white" />
                     ) : (
-                        <Text className='text-white text-center text-lg font-bold'>
-                            SUBMIT
-                        </Text>
+                        <Text className='text-white text-center text-lg font-bold'>SUBMIT</Text>
                     )}
                 </TouchableOpacity>
             </View>
 
-            {/* Success Modal */}
             <SuccessModal
                 visible={showSuccessModal}
                 onClose={handleDone}
                 title="Success!"
-                subtitle="Your password is successfully created"
+                subtitle="Your password has been reset successfully"
             />
         </SafeAreaView>
     )

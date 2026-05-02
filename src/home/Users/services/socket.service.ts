@@ -1,150 +1,130 @@
-// src/services/socket.service.ts
 import io, { Socket } from 'socket.io-client'
-import { IPA_BASE } from '@env'
+import { SOCKET_URL } from '@env'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
-export interface RideAcceptData {
-  bookingId: string
-  driverId: string
-  driverName: string
-  driverPhone: string
-  driverRating: number
-  vehicleType: string
-  vehicleNumber: string
-  driverImage?: string
-  eta: number
-  pickupLocation: {
-    lat: number
-    lng: number
-    address: string
-  }
-  dropoffLocation: {
-    lat: number
-    lng: number
-    address: string
-  }
-}
+export type JobStatus =
+  | 'PENDING'
+  | 'BROADCAST'
+  | 'BOOKED'
+  | 'ON_WAY'
+  | 'ARRIVED'
+  | 'LOADED'
+  | 'IN_TRANSIT'
+  | 'DELIVERED'
+  | 'CANCELLED'
 
-export interface RideCancelData {
-  bookingId: string
-  reason: string
-  cancelledBy: 'driver' | 'user' | 'system'
+export interface JobStatusUpdateData {
+  jobId: string
+  status: JobStatus
 }
 
 export interface DriverLocationData {
-  driverId: string
-  bookingId: string
-  latitude: number
-  longitude: number
-  timestamp: string
+  jobId: string
+  lat: number
+  lng: number
+  heading?: number
+  speed?: number
+  ts: number
 }
 
-type RideStatus = 'searching' | 'driver_assigned' | 'driver_arrived' | 'ride_started' | 'ride_completed' | 'cancelled'
+export interface JobNewData {
+  jobId: string
+  truckType: string
+  pickupAddress: string
+  dropoffAddress: string
+  distanceKm: number
+  estimatedFare: number
+}
+
+export interface JobDirectOfferData {
+  jobId: string
+  pickupAddress: string
+  dropoffAddress: string
+  estimatedFare: number
+  timeoutSeconds: number
+}
+
+export interface NotificationData {
+  id: string
+  type: string
+  title: string
+  message: string
+  data: Record<string, unknown>
+  createdAt: string
+}
 
 class SocketService {
   private socket: Socket | null = null
   private isConnected = false
-  private reconnectAttempts = 0
   private maxReconnectAttempts = 5
 
   async connect(): Promise<Socket> {
-    if (this.socket && this.isConnected) {
-      return this.socket
-    }
+    if (this.socket && this.isConnected) return this.socket
 
     const token = await AsyncStorage.getItem('vToken')
-    
-    this.socket = io(IPA_BASE, {
+
+    this.socket = io(SOCKET_URL, {
       transports: ['websocket'],
-      auth: {
-        token: `Bearer ${token}`
-      },
+      auth: { token },
       reconnection: true,
       reconnectionAttempts: this.maxReconnectAttempts,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000
+      reconnectionDelayMax: 5000,
     })
 
-    this.setupEventListeners()
+    this.socket.on('connect', () => {
+      this.isConnected = true
+    })
+    this.socket.on('disconnect', () => {
+      this.isConnected = false
+    })
+    this.socket.on('connect_error', () => {
+      // socket.io handles retries internally
+    })
+
     return this.socket
   }
 
-  private setupEventListeners() {
-    if (!this.socket) return
-
-    this.socket.on('connect', () => {
-      console.log('Socket connected')
-      this.isConnected = true
-      this.reconnectAttempts = 0
-    })
-
-    this.socket.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason)
-      this.isConnected = false
-    })
-
-    this.socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error)
-      this.reconnectAttempts++
-      
-      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        console.log('Max reconnection attempts reached')
-      }
-    })
-
-    this.socket.on('error', (error) => {
-      console.error('Socket error:', error)
-    })
+  onJobStatusUpdate(callback: (data: JobStatusUpdateData) => void) {
+    this.socket?.on('job:status-update', callback)
   }
 
-  // Join a booking room to receive updates
-  joinBookingRoom(bookingId: string) {
-    if (!this.socket || !this.isConnected) {
-      console.warn('Socket not connected, cannot join room')
-      return
-    }
-    this.socket.emit('join-booking', { bookingId })
-    console.log('Joined booking room:', bookingId)
+  offJobStatusUpdate(callback: (data: JobStatusUpdateData) => void) {
+    this.socket?.off('job:status-update', callback)
   }
 
-  // Leave a booking room
-  leaveBookingRoom(bookingId: string) {
-    if (!this.socket || !this.isConnected) return
-    this.socket.emit('leave-booking', { bookingId })
-    console.log('Left booking room:', bookingId)
+  onDriverLocation(callback: (data: DriverLocationData) => void) {
+    this.socket?.on('driver:location', callback)
   }
 
-  // Listen for ride acceptance
-  onRideAccepted(callback: (data: RideAcceptData) => void) {
-    if (!this.socket) return
-    this.socket.on('ride-accepted', callback)
+  offDriverLocation(callback: (data: DriverLocationData) => void) {
+    this.socket?.off('driver:location', callback)
   }
 
-  // Listen for ride cancellation
-  onRideCancelled(callback: (data: RideCancelData) => void) {
-    if (!this.socket) return
-    this.socket.on('ride-cancelled', callback)
+  onNotification(callback: (data: NotificationData) => void) {
+    this.socket?.on('notification', callback)
   }
 
-  // Listen for driver location updates
-  onDriverLocationUpdate(callback: (data: DriverLocationData) => void) {
-    if (!this.socket) return
-    this.socket.on('driver-location-update', callback)
+  offNotification(callback: (data: NotificationData) => void) {
+    this.socket?.off('notification', callback)
   }
 
-  // Listen for ride status updates
-  onRideStatusUpdate(callback: (data: { bookingId: string; status: RideStatus; message?: string }) => void) {
-    if (!this.socket) return
-    this.socket.on('ride-status-update', callback)
+  onJobNew(callback: (data: JobNewData) => void) {
+    this.socket?.on('job:new', callback)
   }
 
-  // Cancel the ride search
-  cancelRideSearch(bookingId: string) {
-    if (!this.socket || !this.isConnected) return
-    this.socket.emit('cancel-ride-search', { bookingId })
+  offJobNew(callback: (data: JobNewData) => void) {
+    this.socket?.off('job:new', callback)
   }
 
-  // Disconnect socket
+  onJobDirectOffer(callback: (data: JobDirectOfferData) => void) {
+    this.socket?.on('job:direct-offer', callback)
+  }
+
+  offJobDirectOffer(callback: (data: JobDirectOfferData) => void) {
+    this.socket?.off('job:direct-offer', callback)
+  }
+
   disconnect() {
     if (this.socket) {
       this.socket.disconnect()
@@ -153,7 +133,6 @@ class SocketService {
     }
   }
 
-  // Check if connected
   getConnectionStatus(): boolean {
     return this.isConnected
   }

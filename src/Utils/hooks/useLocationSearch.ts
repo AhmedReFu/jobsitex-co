@@ -34,7 +34,7 @@ export const useLocationSearch = () => {
         setError(null)
         
         const response = await axios.get(
-          `${IPA_BASE}/api/v1/driver/suggestions`,
+          `${IPA_BASE}/driver/suggestions`,
           {
             params: { address: query },
             headers: { 

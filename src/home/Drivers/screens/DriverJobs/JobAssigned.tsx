@@ -342,9 +342,8 @@ const JobAssigned = () => {
                 })
                 return
             }
-            console.log(`${API_BASE_URL}${END_POINTS.START_JOBS}${jobId}`)
             const response = await axios.patch(
-                `${API_BASE_URL}${END_POINTS.START_JOBS}${jobId}`,
+                `${API_BASE_URL}/jobs/${jobId}/status`,
                 {},
                 {
                     headers: { Authorization: `Bearer ${token}` },
@@ -406,9 +405,8 @@ const JobAssigned = () => {
                                 return
                             }
 
-                            const response = await axios.patch(
-                                `${API_BASE_URL}${END_POINTS.CANCEL_JOBS}${jobId}`,
-                                {},
+                            const response = await axios.delete(
+                                `${API_BASE_URL}/jobs/${jobId}/cancel`,
                                 {
                                     headers: { Authorization: `Bearer ${token}` },
                                     timeout: 15000,

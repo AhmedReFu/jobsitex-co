@@ -210,8 +210,8 @@ const OtpAuth = () => {
                         <View
                             key={index}
                             className={`w-16 h-16 rounded-2xl border-2 items-center justify-center ${digit
-                                    ? 'border-primary bg-white'
-                                    : 'bg-white border-gray-200'
+                                ? 'border-primary bg-white'
+                                : 'bg-white border-gray-200'
                                 }`}
                         >
                             <TextInput

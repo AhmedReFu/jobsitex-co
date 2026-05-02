@@ -108,7 +108,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       const response = await axios.get(
-        `${IPA_BASE}/api/v1/users/me`,
+        `${IPA_BASE}/user/profile`,
         {
           headers: {
             'Content-Type': 'application/json',
@@ -162,7 +162,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       const response = await axios.patch(
-        `${IPA_BASE}/api/v1/users/update-profile`,
+        `${IPA_BASE}/user/profile`,
         formData,
         {
           headers: {
@@ -218,9 +218,9 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       const response = await axios.post(
-        `${IPA_BASE}/api/v1/auth/change-password`,
+        `${IPA_BASE}/user/change-password`,
         {
-          oldPassword,
+          currentPassword: oldPassword,
           newPassword
         },
         {
@@ -261,7 +261,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       const response = await axios.delete(
-        `${IPA_BASE}/api/v1/users/delete-account`,
+        `${IPA_BASE}/user/delete-account`,
         {
           headers: {
             'Content-Type': 'application/json',

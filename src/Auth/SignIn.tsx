@@ -179,7 +179,7 @@ const SignIn = () => {
     }
 
     const handleForgotPassword = () => {
-        (navigation as any).replace('ForgotPassword' as any)
+        (navigation as any).navigate('ForgotPassword')
     }
 
     const handleSignUp = () => {
