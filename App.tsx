@@ -33,6 +33,7 @@ import UserSelectTruck from './src/home/Users/screens/UserHome/UserSelectTruck';
 import UserSetDropOff from './src/home/Users/screens/UserHome/UserSetDropOff';
 import UserActiveJobsDetails from './src/home/Users/screens/UserJobs/UserActiveJobsDetails';
 import UserCompleteJobsDetails from './src/home/Users/screens/UserJobs/UserCompleteJobsDetails';
+import UserRateDriver from './src/home/Users/screens/UserJobs/UserRateDriver';
 import UserEditProfile from './src/home/Users/screens/UserProfile/UserEditProfile';
 import UserHelpSupport from './src/home/Users/screens/UserProfile/UserHelpSupport';
 import UserNotificationSettings from './src/home/Users/screens/UserProfile/UserNotificationSettings';
@@ -75,6 +76,7 @@ function AuthStack() {
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserHelpSupport" component={UserHelpSupport} />
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserActiveJobsDetails" component={UserActiveJobsDetails} />
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserCompleteJobsDetails" component={UserCompleteJobsDetails} />
+      <Stack.Screen options={{ animation: "slide_from_right" }} name="UserRateDriver" component={UserRateDriver} />
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserNearByTrucks" component={UserNearByTrucks} />
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserMappingView" component={UserMappingView} />
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserSetDropOff" component={UserSetDropOff} />
@@ -83,6 +85,7 @@ function AuthStack() {
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserSelectTruck" component={UserSelectTruck} />
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserOrderDetails" component={UserOrderDetails} />
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserFindingDrivers" component={UserFindingDrivers} />
+      <Stack.Screen options={{ animation: "slide_from_right" }} name="UserLiveTracking" component={UserLiveTracking} />
 
       <Stack.Screen options={{ animation: "slide_from_right" }} name="DriverMainTabs" component={DriverMainTabs} />
       <Stack.Screen options={{ animation: "slide_from_right" }} name="ProfileSetup" component={ProfileSetup} />
@@ -113,8 +116,10 @@ function OnboardingStack() {
 }
 
 function MainAppStack() {
+  const { user } = useAuth();
+  const initialRoute = user?.role === 'DRIVER' ? 'DriverMainTabs' : 'UserMainTabs';
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false, statusBarStyle: "dark" }}>
+    <Stack.Navigator screenOptions={{ headerShown: false, statusBarStyle: "dark" }} initialRouteName={initialRoute as any}>
       {/* User Screens */}
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserMainTabs" component={UserMainTabs} />
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserEditProfile" component={UserEditProfile} />
@@ -125,6 +130,7 @@ function MainAppStack() {
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserHelpSupport" component={UserHelpSupport} />
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserActiveJobsDetails" component={UserActiveJobsDetails} />
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserCompleteJobsDetails" component={UserCompleteJobsDetails} />
+      <Stack.Screen options={{ animation: "slide_from_right" }} name="UserRateDriver" component={UserRateDriver} />
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserNearByTrucks" component={UserNearByTrucks} />
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserMappingView" component={UserMappingView} />
       <Stack.Screen options={{ animation: "slide_from_right" }} name="UserSetDropOff" component={UserSetDropOff} />

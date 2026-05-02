@@ -1,4 +1,4 @@
-import { ACCEPT_JOBS, ALL_JOBS, DRIVER_DETAILS, IPA_BASE, LOCATION_UPDATE, STATUS_DRIVER } from '@env'
+import { ACCEPT_JOBS, AVAILABLE_JOBS, DRIVER_DETAILS, IPA_BASE, LOCATION_UPDATE, STATUS_DRIVER } from '@env'
 import { Entypo, FontAwesome6, Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native'
@@ -25,6 +25,7 @@ import JobCard, { JobCardData } from '../../../Components/JobCard'
 import { Toast, useToast } from '../../../Components/useToost'
 import { Images } from '../../../constants'
 import { AuthStackParamList } from '../../../Navigation/type'
+import { driverSocketService, JobNewData } from '../services/driverSocket.service'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -32,7 +33,7 @@ const API_BASE_URL = IPA_BASE
 const END_POINTS = {
     STATUS_DRIVER,
     LOCATION_UPDATE,
-    ALL_JOBS,
+    AVAILABLE_JOBS,
     DRIVER_DETAILS,
     ACCEPT_JOBS,
 }
@@ -49,35 +50,31 @@ export type SafeDriver = {
 }
 
 type ApiJob = {
-    _id: string
-    jobId: string
-    vehicleType: string
-    status: string
-    pickupLocation: { address: string; coordinates: [number, number] }
-    dropLocation: { address: string; coordinates: [number, number] }
-    distance: number
-    duration: number
-    fare: number
-    scheduleDate?: string
-    scheduleTime?: string
-    workNotes?: string
-    userId: { _id: string; email: string }
+    id: string
+    pickupAddress: string
+    dropoffAddress: string
+    distanceKm: number
+    estimatedFare: number
+    workNote?: string
+    scheduledAt?: string
+    truckType?: { name: string }
+    customer?: { user?: { fullName?: string; email?: string } }
 }
 
 const mapApiJob = (item: ApiJob): JobCardData => ({
-    id: item._id,
-    jobId: item.jobId,
-    vehicleType: item.vehicleType,
+    id: item.id,
+    jobId: item.id,
+    vehicleType: item.truckType?.name ?? 'Truck',
     status: 'pending',
-    pickupAddress: item.pickupLocation.address,
-    dropAddress: item.dropLocation.address,
-    distance: item.distance,
-    duration: item.duration,
-    fare: item.fare,
-    scheduleDate: item.scheduleDate,
-    scheduleTime: item.scheduleTime,
-    workNotes: item.workNotes,
-    customerEmail: item.userId?.email,
+    pickupAddress: item.pickupAddress,
+    dropAddress: item.dropoffAddress,
+    distance: item.distanceKm,
+    duration: 0,
+    fare: item.estimatedFare,
+    scheduleDate: item.scheduledAt,
+    scheduleTime: undefined,
+    workNotes: item.workNote,
+    customerEmail: item.customer?.user?.email,
 })
 
 const distanceItem = [
@@ -287,10 +284,8 @@ const DriverHome = () => {
                 const token = await getToken()
                 if (!token) return
 
-                const vehicleType = driver?.vehicleType ?? 'Truck'
-
-                const res = await axios.get(`${API_BASE_URL}${END_POINTS.ALL_JOBS}`, {
-                    params: { lat, lng, radius, type: vehicleType },
+                const res = await axios.get(`${API_BASE_URL}${END_POINTS.AVAILABLE_JOBS}`, {
+                    params: { lat, lng, radiusKm: radius },
                     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
                     timeout: 15000,
                 })
@@ -302,10 +297,10 @@ const DriverHome = () => {
                 setJobsError('Could not load nearby jobs.')
             } finally {
                 setJobsLoading(false)
-                setIsFirstLoad(false)   // ← skeleton সরে যায়
+                setIsFirstLoad(false)
             }
         },
-        [selectedRadius, driver?.vehicleType]
+        [selectedRadius]
     )
 
     // ─── Radius Change ────────────────────────────────────────────────────────
@@ -425,6 +420,60 @@ const DriverHome = () => {
             locationWatcherRef.current = null
         }
     }, [fetchCurrentLocation, startWatchingLocation])
+
+    // ─── Socket: connect + subscribe/unsubscribe based on online status ───────
+
+    useEffect(() => {
+        let mounted = true
+
+        const connectAndSubscribe = async () => {
+            try {
+                await driverSocketService.connect()
+                if (!mounted) return
+
+                if (isOnline) {
+                    await driverSocketService.subscribeJobs(selectedRadius || 20)
+                } else {
+                    driverSocketService.unsubscribeJobs().catch(() => {})
+                }
+            } catch (err) {
+                console.log('Socket connect error:', err)
+            }
+        }
+
+        connectAndSubscribe()
+
+        return () => {
+            mounted = false
+        }
+    }, [isOnline, selectedRadius])
+
+    // ─── Socket: listen for new jobs in real time ─────────────────────────────
+
+    useEffect(() => {
+        const handleNewJob = (data: JobNewData) => {
+            const newCard: JobCardData = {
+                id: data.jobId,
+                jobId: data.jobId,
+                vehicleType: data.truckType,
+                status: 'pending',
+                pickupAddress: data.pickupAddress,
+                dropAddress: data.dropoffAddress,
+                distance: data.distanceKm,
+                duration: 0,
+                fare: data.estimatedFare,
+            }
+            setJobs((prev) => {
+                if (prev.some((j) => j.id === data.jobId)) return prev
+                return [newCard, ...prev]
+            })
+        }
+
+        driverSocketService.onJobNew(handleNewJob)
+        return () => {
+            driverSocketService.offJobNew(handleNewJob)
+        }
+    }, [])
 
     useFocusEffect(
         useCallback(() => {

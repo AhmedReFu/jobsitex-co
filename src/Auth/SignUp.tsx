@@ -5,7 +5,6 @@ import { NavigationProp, useFocusEffect, useNavigation, useRoute } from '@react-
 import axios from 'axios';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    Alert,
     Animated,
     Dimensions,
     FlatList,
@@ -411,7 +410,7 @@ const SignUp = () => {
     const handleSignUp = async () => {
         const err = validate();
         if (err) {
-            Alert.alert('Error', err);
+            toast.show({ message: err, type: 'warning', style: 'top' });
             return;
         }
 
@@ -427,7 +426,7 @@ const SignUp = () => {
                     email: email.trim().toLowerCase(),
                     password,
                     fullName: fullName.trim(),
-                    mobileNumber: v.phone, // ✅ FULL PHONE NUMBER HERE
+                    mobileNumber: v.phone,
                     role: type,
                 },
                 {
@@ -436,22 +435,20 @@ const SignUp = () => {
                 }
             );
             const data = res.data;
-            console.log(res.data);
             if (data?.success === true) {
+                toast.show({ message: 'Account created! Check your email for the OTP.', type: 'success', style: 'top' });
                 setTimeout(() => {
                     (navigation as any).replace("OtpAuth", {
                         type: type,
                         email: email.trim().toLowerCase(),
-                    })
+                    });
                 }, 1500);
-
             } else {
-                Alert.alert('Sign in failed', data?.message || 'Invalid credentials');
+                toast.show({ message: data?.message || 'Sign up failed', type: 'error', style: 'top' });
             }
-            // Alert.alert('Success', res.data?.message ?? 'Account created');
         } catch (e: any) {
             const msg = e?.response?.data?.message || e?.message || 'Something went wrong';
-            Alert.alert('Sign up failed', msg);
+            toast.show({ message: msg, type: 'error', style: 'top' });
         } finally {
             setIsLoading(false);
         }

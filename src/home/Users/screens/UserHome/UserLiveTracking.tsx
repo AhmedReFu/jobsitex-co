@@ -61,6 +61,7 @@ const UserLiveTracking = () => {
 
   useEffect(() => {
     pan.setOffset({ x: 0, y: 0 })
+    socketService.connect()
   }, [])
 
   useEffect(() => {

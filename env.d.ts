@@ -39,4 +39,8 @@ declare module '@env' {
   // Maps
   export const GOOGLE_MAPS_API_KEY: string
   export const IP_FIND: string
+
+  // New
+  export const RESEND_OTP: string
+  export const AVAILABLE_JOBS: string
 }

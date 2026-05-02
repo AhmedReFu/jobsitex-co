@@ -74,7 +74,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const loadStoredData = async () => {
     try {
       const storedToken = await AsyncStorage.getItem('vToken');
-      const storedUser = await AsyncStorage.getItem('user');
+      const storedUser = await AsyncStorage.getItem('vUser');
       const onboardingCompleted = await AsyncStorage.getItem('onboardingCompleted');
 
       if (storedToken && storedUser) {
@@ -92,7 +92,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signIn = async (userData: User, authToken: string) => {
     try {
       await AsyncStorage.setItem('vToken', authToken);
-      await AsyncStorage.setItem('user', JSON.stringify(userData));
+      await AsyncStorage.setItem('vUser', JSON.stringify(userData));
       setToken(authToken);
       setUser(userData);
     } catch (error) {
@@ -103,9 +103,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signOut = async () => {
     try {
-      await AsyncStorage.removeItem('vToken');
-      await AsyncStorage.removeItem('user');
-      // Don't clear onboarding status on logout
+      await AsyncStorage.multiRemove(['vToken', 'vRefreshToken', 'vUser', 'vDriver']);
       setToken(null);
       setUser(null);
     } catch (error) {
@@ -117,7 +115,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const updateUser = async (userData: Partial<User>) => {
     if (user) {
       const updatedUser = { ...user, ...userData };
-      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+      await AsyncStorage.setItem('vUser', JSON.stringify(updatedUser));
       setUser(updatedUser);
     }
   };

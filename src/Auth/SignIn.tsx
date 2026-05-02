@@ -75,14 +75,14 @@ const SignIn = () => {
                 const user = data.data.user
 
                 const safeUser: SafeUser = {
-                    _id: user._id,
+                    _id: user.id ?? user._id,
                     fullName: user.fullName,
                     email: user.email,
-                    phoneNumber: user.phoneNumber,
+                    phoneNumber: user.mobileNumber ?? user.phoneNumber ?? '',
                     role: user.role,
-                    status: user.status,
-                    isVerified: user.isVerified,
-                    imageUrl: user.image?.url ?? null,
+                    status: user.status ?? 'ACTIVE',
+                    isVerified: user.isEmailVerified ?? user.isVerified ?? false,
+                    imageUrl: user.avatar ?? user.image?.url ?? null,
                     subscriptionStatus: user.subscription?.status ?? null,
                 }
 

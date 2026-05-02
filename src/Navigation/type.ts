@@ -3,10 +3,10 @@ export type AuthStackParamList = {
   SignIn: undefined;
   SplashScreen: undefined;
   ForgotPassword: undefined;
-  OtpAuth: undefined;
+  OtpAuth: { email: string; type?: string };
   Profile: undefined;
   UserProfile: undefined;
-  ProfileSetup: undefined;
+  ProfileSetup: { accessToken?: string; email?: string };
   RequiredDocuments: undefined;
   ResetPassword: undefined;
   OtpVerification: {
@@ -24,7 +24,34 @@ export type AuthStackParamList = {
   UserScheduleShifting: undefined;
   UserSelectTruck: undefined;
   UserOrderDetails: undefined;
-  UserFindingDrivers: undefined;
+  UserFindingDrivers: {
+    pickup?: any;
+    dropoff?: any;
+    routeData?: any;
+    selectedTruck?: any;
+    scheduleDate?: string;
+    scheduleTime?: string;
+    workNotes?: string;
+    costBreakdown?: any;
+    jobId?: string;
+    bookingId?: string;
+  };
+  UserLiveTracking: {
+    pickup?: any;
+    dropoff?: any;
+    routeData?: any;
+    selectedTruck?: any;
+    scheduleDate?: string;
+    scheduleTime?: string;
+    workNotes?: string;
+    costBreakdown?: any;
+    jobId?: string;
+    bookingId?: string;
+    driver?: any;
+  };
+  UserRateDriver: {
+    jobId: string;
+  };
   UserEditProfile: undefined;
   DriverMainTabs: undefined;
   UserNotificationSettings: undefined;
@@ -38,7 +65,7 @@ export type AuthStackParamList = {
     jobId: string;
   };
   LocationPermission: {
-    type: any;
+    type: string;
   };
   DriverEditProfile: undefined;
   DriverDocuments: undefined;
@@ -73,5 +100,4 @@ export type AuthStackParamList = {
     onBoardType: "User" | "Driver";
   };
   RoleSelect: undefined;
-  UserLiveTracking: undefined;
 };

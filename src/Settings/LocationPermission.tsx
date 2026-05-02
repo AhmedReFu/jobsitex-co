@@ -55,7 +55,7 @@ const LocationPermission = () => {
 
                 // Navigate to next screen (Home or Main)
                 console.log(type)
-                if (type == "USER") {
+                if (type === "CUSTOMER" || type === "USER") {
                     navigation.navigate('UserMainTabs')
                 }
                 else {
@@ -79,7 +79,7 @@ const LocationPermission = () => {
         console.log('Location permission skipped')
         // Navigate to next screen without location
         // or your main screen
-        if (type == "USER") {
+        if (type === "CUSTOMER" || type === "USER") {
             navigation.navigate('UserMainTabs')
         }
         else {

@@ -24,18 +24,15 @@ const SplashScreen = () => {
 
     useEffect(() => {
         const t = setTimeout(() => {
-            // Determine where to navigate after splash
             if (user) {
-                // User is logged in
                 if (isFirstLaunch && !hasCompletedOnboarding) {
-            // New user - show onboarding
                     (navigation as any).replace("RoleSelect");
+                } else if (user.role === 'DRIVER') {
+                    (navigation as any).replace("DriverMainTabs");
                 } else {
-                    // Existing user - go to home
-                    (navigation as any).replace("Home");
+                    (navigation as any).replace("UserMainTabs");
                 }
             } else {
-                // User not logged in - go to sign in
                 (navigation as any).replace("SignIn");
             }
         }, 5000);
