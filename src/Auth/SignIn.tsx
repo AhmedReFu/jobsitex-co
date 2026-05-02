@@ -1,0 +1,325 @@
+import { IPA_BASE, LOGIN } from '@env'
+import { Ionicons } from '@expo/vector-icons'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { NavigationProp, useNavigation, useRoute } from '@react-navigation/native'
+import axios from 'axios'
+import React, { useState } from 'react'
+import {
+    Image,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import AppleButtonSvg from '../Components/Apple'
+import GoogleButtonSvg from '../Components/Google'
+import { Toast, useToast } from '../Components/useToost'
+import { AuthStackParamList } from '../Navigation/type'
+import { Images } from '../constants'
+
+const API_BASE_URL = IPA_BASE
+const END_POINTS = LOGIN
+
+export type SafeUser = {
+    _id: string
+    fullName: string
+    email: string
+    phoneNumber: string
+    role: string
+    status: string
+    isVerified: boolean
+    imageUrl: string | null
+    subscriptionStatus: string | null
+}
+
+const SignIn = () => {
+    const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
+    const toast = useToast()
+    const route = useRoute<any>()
+    const type = route.params?.type
+
+    const [email, setEmail] = useState('')
+    const [password, setPassword] = useState('')
+    const [showPassword, setShowPassword] = useState(false)
+    const [loading, setLoading] = useState(false)
+
+    const handleSignIn = async () => {
+        if (!email.trim() || !password) {
+            toast.show({
+                message: 'Please enter email and password',
+                type: 'warning',
+                style: 'top',
+            })
+            return
+        }
+
+        try {
+            setLoading(true)
+
+            const res = await axios.post(
+                `${API_BASE_URL}${END_POINTS}`,
+                {
+                    email: email.trim().toLowerCase(),
+                    password: password,
+                },
+                {
+                    headers: { 'Content-Type': 'application/json' },
+                    timeout: 15000,
+                }
+            )
+
+            const data = res.data
+
+            if (data?.success === true) {
+                const user = data.data.user
+
+                const safeUser: SafeUser = {
+                    _id: user._id,
+                    fullName: user.fullName,
+                    email: user.email,
+                    phoneNumber: user.phoneNumber,
+                    role: user.role,
+                    status: user.status,
+                    isVerified: user.isVerified,
+                    imageUrl: user.image?.url ?? null,
+                    subscriptionStatus: user.subscription?.status ?? null,
+                }
+
+                await AsyncStorage.multiSet([
+                    ['vToken', data.data.accessToken],
+                    ['vRefreshToken', data.data.refreshToken],
+                    ['vUser', JSON.stringify(safeUser)],
+                ])
+
+                // ✅ Success Toast - auto hide হবে
+                toast.show({
+                    message: 'Login successful! Welcome back.',
+                    type: 'success',
+                    style: 'top',
+                })
+
+                setTimeout(() => {
+                    navigation.navigate('LocationPermission', {
+                        type: user.role,
+                    } as any)
+                }, 1000)
+            } else {
+                // ✅ Error Toast
+                toast.show({
+                    message: data?.message || 'Invalid credentials',
+                    type: 'error',
+                    style: 'top',
+                })
+            }
+        } catch (e: any) {
+            const msg = e?.response?.data?.message || e?.message || 'Something went wrong'
+            console.log('Sign in error:', msg)
+
+            // Handle specific backend messages
+            if (msg === 'Profile setup not completed. Please complete your profile first!') {
+                // ✅ Info Toast with button action
+                toast.show({
+                    message: 'Complete your profile to continue',
+                    type: 'info',
+                    style: 'center',
+                    buttons: [
+                        {
+                            text: 'Setup Now',
+                            action: 'custom',
+                            onPress: () => {
+                                navigation.navigate('ProfileSetup', {
+                                    email: email.trim().toLowerCase(),
+                                } as any)
+                            }
+                        },
+                        {
+                            text: 'Cancel',
+                            action: 'dismiss'
+                        }
+                    ]
+                })
+                return
+            }
+
+            if (msg === 'Account not activated. Please verify OTP first!') {
+                // ✅ Info Toast with button action
+                toast.show({
+                    message: 'Verify your email to activate account',
+                    type: 'warning',
+                    style: 'center',
+                    buttons: [
+                        {
+                            text: 'Verify Now',
+                            action: 'custom',
+                            onPress: () => {
+                                navigation.navigate('OtpAuth', {
+                                    email: email.trim().toLowerCase(),
+                                } as any)
+                            }
+                        },
+                        {
+                            text: 'Cancel',
+                            action: 'dismiss'
+                        }
+                    ]
+                })
+                return
+            }
+
+            // ✅ Error Toast
+            toast.show({
+                message: msg,
+                type: 'error',
+                style: 'top',
+            })
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleForgotPassword = () => {
+        (navigation as any).replace('ForgotPassword' as any)
+    }
+
+    const handleSignUp = () => {
+        (navigation as any).replace('SignUp', { type })
+    }
+
+    const handleGoogleSignIn = () => {
+        toast.show({
+            message: 'Google Sign In coming soon',
+            type: 'info',
+            style: 'top',
+        })
+    }
+
+    const handleAppleSignIn = () => {
+        toast.show({
+            message: 'Apple Sign In coming soon',
+            type: 'info',
+            style: 'top',
+        })
+    }
+
+    return (
+        <SafeAreaView className='flex-1 bg-gray-50'>
+            <View className='px-6 flex-1'>
+                <Image
+                    source={Images.Logo}
+                    className='self-center mt-8 mb-4'
+                    style={{ width: 160, height: 160 }}
+                    resizeMode='contain'
+                />
+
+                <Text className='text-3xl font-bold text-gray-dark mb-2'>
+                    Welcome Back!
+                </Text>
+                <Text className='text-lg text-gray-medium mb-6'>
+                    Hey! Good to see you again
+                </Text>
+
+                {/* Email */}
+                <View className='bg-white rounded-2xl px-4 py-2 flex-row items-center mb-4 border border-gray-200'>
+                    <Ionicons name='mail-outline' size={24} color='#9CA3AF' />
+                    <TextInput
+                        className='flex-1 ml-3 text-lg text-gray-dark'
+                        placeholder='Enter your email'
+                        placeholderTextColor='#9CA3AF'
+                        value={email}
+                        onChangeText={setEmail}
+                        keyboardType='email-address'
+                        autoCapitalize='none'
+                    />
+                </View>
+
+                {/* Password */}
+                <View className='bg-white rounded-2xl px-4 py-2 flex-row items-center mb-2 border border-gray-200'>
+                    <Ionicons name='lock-closed-outline' size={24} color='#9CA3AF' />
+                    <TextInput
+                        className='flex-1 ml-3 text-lg text-gray-dark'
+                        placeholder='Enter your password'
+                        placeholderTextColor='#9CA3AF'
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        autoCapitalize='none'
+                    />
+                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                        <Ionicons
+                            name={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                            size={24}
+                            color='#9CA3AF'
+                        />
+                    </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity onPress={handleForgotPassword} className='self-end mb-6'>
+                    <Text className='text-red-500 text-lg'>Forgot Password?</Text>
+                </TouchableOpacity>
+
+                {/* Sign In Button */}
+                <TouchableOpacity
+                    onPress={handleSignIn}
+                    disabled={loading}
+                    className={`py-5 rounded-2xl mb-4 ${loading ? 'bg-gray-300' : 'bg-primary'}`}
+                    activeOpacity={0.8}
+                >
+                    <Text className='text-white text-center text-lg font-bold'>
+                        {loading ? 'Signing in...' : 'SIGN IN'}
+                    </Text>
+                </TouchableOpacity>
+
+                {/* Sign Up */}
+                <View className='flex-row justify-center mb-6'>
+                    <Text className='text-gray-medium text-lg'>Don't have an account? </Text>
+                    <TouchableOpacity onPress={handleSignUp}>
+                        <Text className='text-secondary font-semibold text-lg'>Sign Up</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Divider */}
+                <View className='flex-row items-center mb-6'>
+                    <View className='flex-1 h-px bg-gray-300' />
+                    <Text className='mx-4 text-gray-medium text-lg font-bold'>Or</Text>
+                    <View className='flex-1 h-px bg-gray-300' />
+                </View>
+
+                <Text className='text-center text-gray-medium text-lg font-bold mb-4'>
+                    Log in with
+                </Text>
+
+                {/* Social Buttons */}
+                <View className='flex-row justify-center gap-4'>
+                    <TouchableOpacity
+                        onPress={handleGoogleSignIn}
+                        className='bg-white border border-gray-200 rounded-2xl px-6 py-4 flex-row items-center justify-center flex-1'
+                        activeOpacity={0.8}
+                    >
+                        <GoogleButtonSvg />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={handleAppleSignIn}
+                        className='bg-white border border-gray-200 rounded-2xl px-6 py-4 flex-row items-center justify-center flex-1'
+                        activeOpacity={0.8}
+                    >
+                        <AppleButtonSvg />
+                    </TouchableOpacity>
+                </View>
+            </View>
+
+            {/* ✅ Toast Component - Must be at the end */}
+            <Toast
+                visible={toast.visible}
+                message={toast.message}
+                type={toast.type}
+                fadeAnim={toast.fadeAnim}
+                buttons={toast.buttons}
+                style={toast.style}
+                onHide={toast.hide}
+            />
+        </SafeAreaView>
+    )
+}
+
+export default SignIn

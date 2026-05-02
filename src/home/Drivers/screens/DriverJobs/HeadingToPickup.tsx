@@ -1,0 +1,732 @@
+// HeadingToPickup.tsx – Full driver ride screen with socket-only status updates
+import { COMPLETE_RIDE, IPA_BASE, JOB_DETAILS } from '@env';
+import {
+    Entypo,
+    Ionicons,
+    MaterialCommunityIcons,
+    MaterialIcons,
+} from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NavigationProp, useNavigation, useRoute } from '@react-navigation/native';
+import axios from 'axios';
+import * as Location from 'expo-location';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Animated,
+    Dimensions,
+    Linking,
+    Pressable,
+    ScrollView,
+    StatusBar,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Toast, useToast } from '../../../../Components/useToost';
+import { AuthStackParamList } from '../../../../Navigation/type';
+import { useRouteDirection } from '../../../../Utils/useRouteDirection';
+import { driverSocketService } from '../../services/driverSocket.service';
+
+const API_BASE_URL = IPA_BASE;
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const ARRIVED_RADIUS_METERS = 50;
+const DROPOFF_RADIUS_METERS = 100;
+const LOCATION_UPDATE_INTERVAL_MS = 5000;
+
+type JobApiResponse = {
+    _id: string;
+    jobId: string;
+    vehicleType?: string;
+    status?: string;
+    distance?: number;
+    duration?: number;
+    fare?: number;
+    scheduleDate?: string;
+    scheduleTime?: string;
+    workNotes?: string;
+    pickupLocation?: {
+        type?: string;
+        coordinates?: [number, number];
+        address?: string;
+    };
+    dropLocation?: {
+        type?: string;
+        coordinates?: [number, number];
+        address?: string;
+    };
+    userId?: { fullName?: string; email?: string; phoneNumber?: string };
+    driverId?: { vehicleType?: string; vehicleCapacity?: string; vehicleNumber?: string; hourRate?: number };
+};
+
+const coordsFromApi = (coords?: [number, number]) => {
+    if (!coords) return { latitude: 0, longitude: 0 };
+    return { latitude: coords[1], longitude: coords[0] };
+};
+
+const getDistanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371000;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const RouteProgressBar = ({ progress }: { progress: number }) => {
+    const clamp = Math.min(Math.max(progress, 0), 1);
+    return (
+        <View className="mb-5">
+            <View className="flex-row items-center justify-between mb-2">
+                <View className="flex-row items-center gap-1">
+                    <Ionicons name="navigate" size={14} color="#3B82F6" />
+                    <Text className="text-xs font-semibold text-gray-500">Driver</Text>
+                </View>
+                <View className="flex-row items-center gap-1">
+                    <Text className="text-xs font-semibold text-gray-500">Pickup</Text>
+                    <MaterialIcons name="location-on" size={14} color="#F59E0B" />
+                </View>
+            </View>
+            <View className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <View style={{ width: `${clamp * 100}%` }} className="h-full bg-green-500 rounded-full" />
+            </View>
+        </View>
+    );
+};
+
+type RidePhase = 'heading_to_pickup' | 'arrived_at_pickup' | 'ride_started' | 'heading_to_dropoff' | 'completed';
+
+const HeadingToPickup = () => {
+    const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
+    const route = useRoute<any>();
+    const toast = useToast();
+    const mapRef = useRef<MapView>(null);
+    const locationWatcherRef = useRef<Location.LocationSubscription | null>(null);
+    const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const isUpdatingRouteRef = useRef(false);
+    const pulseAnim = useRef(new Animated.Value(1)).current;
+    const ridePhaseRef = useRef<RidePhase>('heading_to_pickup');
+    const isMountedRef = useRef(true);
+    const hasFetchedRef = useRef(false);
+
+    const jobId: string = route.params?.jobId ?? '';
+
+    const [data, setData] = useState<JobApiResponse | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [currentCoords, setCurrentCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+    const [distanceToPickup, setDistanceToPickup] = useState<number | null>(null);
+    const [distanceToDropoff, setDistanceToDropoff] = useState<number | null>(null);
+    const [isNearPickup, setIsNearPickup] = useState(false);
+    const [isNearDropoff, setIsNearDropoff] = useState(false);
+    const [routeProgress, setRouteProgress] = useState(0);
+    const [isActionLoading, setIsActionLoading] = useState(false);
+    const [eta, setEta] = useState<number | null>(null);
+    const [ridePhase, setRidePhase] = useState<RidePhase>('heading_to_pickup');
+    const [dropoffEta, setDropoffEta] = useState<number | null>(null);
+
+    const { routeData: routeToPickup, getRoute: getRouteToPickup, isLoading: loadingRoute } = useRouteDirection();
+    const { routeData: routeToDropoff, getRoute: getRouteToDropoff, isLoading: loadingDropRoute } = useRouteDirection();
+
+    useEffect(() => {
+        ridePhaseRef.current = ridePhase;
+    }, [ridePhase]);
+
+    useEffect(() => {
+        if (!isNearPickup && !isNearDropoff) return;
+        const anim = Animated.loop(
+            Animated.sequence([
+                Animated.timing(pulseAnim, { toValue: 1.06, duration: 600, useNativeDriver: true }),
+                Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+            ])
+        );
+        anim.start();
+        return () => anim.stop();
+    }, [isNearPickup, isNearDropoff]);
+
+    const getCurrentLocation = async () => {
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') return null;
+            const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+            return { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+        } catch {
+            return null;
+        }
+    };
+
+    // ---------- Route building functions ----------
+    const buildRoute = async (current: { latitude: number; longitude: number }, jobData: JobApiResponse) => {
+        if (isUpdatingRouteRef.current) return;
+        if (!jobData?.pickupLocation?.coordinates) return;
+        isUpdatingRouteRef.current = true;
+        try {
+            const pickup = coordsFromApi(jobData.pickupLocation.coordinates);
+            await getRouteToPickup(
+                { id: 'current', title: 'Current Location', address: 'Your Location', ...current },
+                { id: 'pickup', title: 'Pickup', address: jobData.pickupLocation.address || '', ...pickup }
+            );
+            const dist = getDistanceMeters(current.latitude, current.longitude, pickup.latitude, pickup.longitude);
+            setDistanceToPickup(dist);
+            setIsNearPickup(dist <= ARRIVED_RADIUS_METERS);
+            setEta(Math.round((dist / 1000 / 30) * 60));
+            if (routeToPickup?.distance) {
+                const totalMeters = routeToPickup.distance * 1000;
+                setRouteProgress(Math.min(1, Math.max(0, 1 - dist / totalMeters)));
+            }
+        } catch (err) {
+            console.error('Route error:', err);
+        } finally {
+            isUpdatingRouteRef.current = false;
+        }
+    };
+
+    const buildRouteToDropoff = async (current: { latitude: number; longitude: number }) => {
+        if (!data?.dropLocation?.coordinates) return;
+        const drop = coordsFromApi(data.dropLocation.coordinates);
+        await getRouteToDropoff(
+            { id: 'current', title: 'Current Location', address: 'Your Location', ...current },
+            { id: 'dropoff', title: 'Dropoff', address: data.dropLocation.address || '', ...drop }
+        );
+        const dist = getDistanceMeters(current.latitude, current.longitude, drop.latitude, drop.longitude);
+        setDistanceToDropoff(dist);
+        setIsNearDropoff(dist <= DROPOFF_RADIUS_METERS);
+        setDropoffEta(Math.round((dist / 1000 / 30) * 60));
+    };
+
+    const startWatchingLocation = async (jobData: JobApiResponse) => {
+        locationWatcherRef.current?.remove();
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        locationWatcherRef.current = await Location.watchPositionAsync(
+            { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
+            async (loc) => {
+                if (!isMountedRef.current) return;
+                const newCoords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+                setCurrentCoords(newCoords);
+                const phase = ridePhaseRef.current;
+                if (phase === 'heading_to_pickup' || phase === 'arrived_at_pickup') {
+                    await buildRoute(newCoords, jobData);
+                } else if (phase === 'ride_started' || phase === 'heading_to_dropoff') {
+                    await buildRouteToDropoff(newCoords);
+                }
+                mapRef.current?.animateToRegion({ ...newCoords, latitudeDelta: 0.015, longitudeDelta: 0.015 }, 800);
+            }
+        );
+    };
+
+    const sendLiveLocation = () => {
+        if (!jobId || !currentCoords) return;
+        driverSocketService.sendLocationUpdate({
+            rideId: jobId,
+            latitude: currentCoords.latitude,
+            longitude: currentCoords.longitude,
+        });
+    };
+
+    const startPeriodicLocationUpdates = () => {
+        if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
+        locationIntervalRef.current = setInterval(sendLiveLocation, LOCATION_UPDATE_INTERVAL_MS);
+    };
+
+    // ---------- Fetch job details (HTTP only for job data, not status) ----------
+    const fetchJobDetails = useCallback(async () => {
+        if (hasFetchedRef.current) return;
+        hasFetchedRef.current = true;
+
+        try {
+            setIsLoading(true);
+            const token = await AsyncStorage.getItem('vToken');
+            if (!token) throw new Error('No token found');
+
+            const res = await axios.get(`${API_BASE_URL}${JOB_DETAILS}${jobId}`, {
+                headers: { Authorization: `Bearer ${token}` },
+                timeout: 15000,
+            });
+            const job: JobApiResponse = res.data?.data;
+            if (!job) throw new Error('Invalid job data');
+            setData(job);
+
+            // Connect socket & join ride
+            await driverSocketService.connect();
+            driverSocketService.joinRide(jobId);
+
+            // Listen for backend status updates (optional sync)
+            driverSocketService.onRideStatusUpdate((update: any) => {
+                console.log('Backend status update:', update);
+                if (update.status === 'started' && ridePhaseRef.current !== 'ride_started') {
+                    setRidePhase('ride_started');
+                } else if (update.status === 'completed') {
+                    setRidePhase('completed');
+
+                    navigation.navigate('DriverJobsComplete', { jobId: jobId })
+                }
+            });
+
+            const loc = await getCurrentLocation();
+            if (loc && job?.pickupLocation?.coordinates) {
+                setCurrentCoords(loc);
+                await buildRoute(loc, job);
+            }
+            await startWatchingLocation(job);
+            startPeriodicLocationUpdates();
+
+            setTimeout(() => {
+                if (mapRef.current && job?.pickupLocation?.coordinates) {
+                    const pickup = coordsFromApi(job.pickupLocation.coordinates);
+                    mapRef.current.fitToCoordinates([pickup], {
+                        edgePadding: { top: 120, right: 60, bottom: 300, left: 60 },
+                        animated: true,
+                    });
+                }
+            }, 800);
+        } catch (err: any) {
+            console.error('Fetch error:', err);
+            if (isMountedRef.current) {
+                setError(err?.message || 'Failed to load job');
+                toast.show({ message: 'Failed to load job', type: 'error', style: 'top' });
+            }
+        } finally {
+            if (isMountedRef.current) setIsLoading(false);
+        }
+    }, [jobId, toast, navigation, getRouteToPickup, routeToPickup?.distance, getRouteToDropoff]);
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        fetchJobDetails();
+
+        return () => {
+            isMountedRef.current = false;
+            if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
+            locationWatcherRef.current?.remove();
+            if (jobId) driverSocketService.leaveRide(jobId);
+            driverSocketService.disconnect();
+        };
+    }, [fetchJobDetails, jobId]);
+
+    // ========== RIDE ACTIONS – SOCKET ONLY, NO HTTP ==========
+    const handleArrived = () => {
+        if (!currentCoords || !data?._id) return;
+        if (!isNearPickup) {
+            toast.show({ message: `You are ${Math.round(distanceToPickup || 0)}m away. Get closer.`, type: 'warning', style: 'top' });
+            return;
+        }
+        driverSocketService.driverArrived(data._id);
+        setRidePhase('arrived_at_pickup');
+        toast.show({ message: 'Marked as arrived at pickup!', type: 'success', style: 'top' });
+    };
+
+    const handleStartRide = () => {
+        Alert.alert('Start Ride', 'Have you picked up the customer?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Yes, Start Ride',
+                onPress: async () => {
+                    if (!currentCoords || !data?._id) return;
+                    setIsActionLoading(true);
+                    try {
+                        // ✅ Only socket event – backend updates DB
+                        driverSocketService.startRide(data._id);
+                        setRidePhase('ride_started');
+                        if (data?.dropLocation?.coordinates) {
+                            await buildRouteToDropoff(currentCoords);
+                        }
+                        toast.show({ message: 'Ride started! Heading to dropoff.', type: 'success', style: 'top' });
+                    } catch (err: any) {
+                        toast.show({ message: 'Failed to start ride', type: 'error', style: 'top' });
+                    } finally {
+                        setIsActionLoading(false);
+                    }
+                },
+            },
+        ]);
+    };
+
+    const handleCompleteRide = async () => {
+        if (!currentCoords || !data?._id) return;
+        if (!isNearDropoff) {
+            toast.show({
+                message: `You are ${Math.round(distanceToDropoff || 0)}m away. Get closer to complete.`,
+                type: 'warning',
+                style: 'top',
+            });
+            return;
+        }
+        setIsActionLoading(true);
+        try {
+            // ✅ Only socket event – backend updates DB
+            driverSocketService.completeRide(data._id);
+            setRidePhase('completed');
+            try {
+
+
+                const token = await AsyncStorage.getItem('vToken')
+                if (!token) {
+                    toast.show({
+                        message: 'Authentication failed. Please login again.',
+                        type: 'error',
+                        style: 'top',
+                    })
+                    return
+                }
+
+                const response = await axios.patch(
+                    `${API_BASE_URL}${COMPLETE_RIDE}${jobId}`,
+                    {},
+                    {
+                        headers: { Authorization: `Bearer ${token}` },
+                        timeout: 15000,
+                    }
+                );
+                console.log(response)
+                if (response.data?.success === true) {
+                    toast.show({
+                        message: 'Ride completed successfully!',
+                        type: 'success',
+                        style: 'top',
+                    })
+                    navigation.navigate('DriverJobsComplete', { jobId: '1' })
+                    // Navigate to pickup screen
+                    toast.show({ message: 'Ride completed!', type: 'success', style: 'top' });
+
+                } else {
+                    toast.show({
+                        message: response.data?.message || 'Failed to ride completed',
+                        type: 'error',
+                        style: 'top',
+                    })
+                }
+            } catch (err: any) {
+                console.error('Ride completed error:', err)
+                toast.show({
+                    message: err?.response?.data?.message || 'Something went wrong',
+                    type: 'error',
+                    style: 'top',
+                })
+            } finally {
+
+            }
+
+        } catch (err: any) {
+            toast.show({ message: 'Failed to complete ride', type: 'error', style: 'top' });
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
+
+    const pickupCoords = data?.pickupLocation?.coordinates ? coordsFromApi(data.pickupLocation.coordinates) : null;
+    const dropCoords = data?.dropLocation?.coordinates ? coordsFromApi(data.dropLocation.coordinates) : null;
+
+    const getArrivalTime = () => {
+        if (ridePhase === 'heading_to_pickup' && eta) {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() + eta);
+            return now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+        if ((ridePhase === 'ride_started' || ridePhase === 'heading_to_dropoff') && dropoffEta) {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() + dropoffEta);
+            return now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+        return '--:--';
+    };
+
+    const getDistanceDisplay = () => {
+        if (ridePhase === 'heading_to_pickup' || ridePhase === 'arrived_at_pickup') {
+            if (distanceToPickup === null) return routeToPickup ? `${routeToPickup.distance.toFixed(1)} km` : '-- km';
+            if (distanceToPickup < 1000) return `${Math.round(distanceToPickup)} m`;
+            return `${(distanceToPickup / 1000).toFixed(1)} km`;
+        } else {
+            if (distanceToDropoff === null) return routeToDropoff ? `${routeToDropoff.distance.toFixed(1)} km` : '-- km';
+            if (distanceToDropoff < 1000) return `${Math.round(distanceToDropoff)} m`;
+            return `${(distanceToDropoff / 1000).toFixed(1)} km`;
+        }
+    };
+
+    const focusOnCurrentLocation = () => {
+        if (currentCoords) mapRef.current?.animateToRegion({ ...currentCoords, latitudeDelta: 0.02, longitudeDelta: 0.02 }, 800);
+    };
+    const focusOnPickup = () => {
+        if (pickupCoords) mapRef.current?.animateToRegion({ ...pickupCoords, latitudeDelta: 0.02, longitudeDelta: 0.02 }, 800);
+    };
+    const focusOnDrop = () => {
+        if (dropCoords) mapRef.current?.animateToRegion({ ...dropCoords, latitudeDelta: 0.02, longitudeDelta: 0.02 }, 800);
+    };
+
+    if (isLoading) {
+        return (
+            <SafeAreaView className="flex-1 bg-white items-center justify-center">
+                <ActivityIndicator size="large" color="#10B981" />
+                <Text className="text-gray-500 mt-3">Loading ride details...</Text>
+            </SafeAreaView>
+        );
+    }
+
+    if (error || !data) {
+        return (
+            <SafeAreaView className="flex-1 bg-white items-center justify-center px-6">
+                <MaterialCommunityIcons name="alert-circle-outline" size={48} color="#EF4444" />
+                <Text className="text-gray-900 font-bold text-xl mt-4">Failed to load job</Text>
+                <Text className="text-gray-500 text-center mt-2">{error}</Text>
+                <TouchableOpacity onPress={() => {
+                    hasFetchedRef.current = false;
+                    fetchJobDetails();
+                }} className="bg-green-500 rounded-2xl px-8 py-4 mt-6">
+                    <Text className="text-white font-bold">Retry</Text>
+                </TouchableOpacity>
+            </SafeAreaView>
+        );
+    }
+
+    const isShowArrivedButton = ridePhase === 'heading_to_pickup';
+    const isShowStartButton = ridePhase === 'arrived_at_pickup';
+    const isShowCompleteButton = ridePhase === 'ride_started' || ridePhase === 'heading_to_dropoff';
+
+    return (
+        <SafeAreaView className="flex-1 bg-white" edges={['top']}>
+            <StatusBar barStyle="dark-content" />
+            <View className="flex-1">
+                {/* Map View */}
+                <View style={{ height: SCREEN_HEIGHT * 0.5 }}>
+                    <MapView
+                        ref={mapRef}
+                        provider={PROVIDER_GOOGLE}
+                        style={{ flex: 1 }}
+                        showsUserLocation={false}
+                        showsMyLocationButton={false}
+                        initialRegion={{
+                            latitude: pickupCoords?.latitude || 23.8103,
+                            longitude: pickupCoords?.longitude || 90.4125,
+                            latitudeDelta: 0.04,
+                            longitudeDelta: 0.04,
+                        }}
+                    >
+                        {currentCoords && (
+                            <Marker coordinate={currentCoords} title="You">
+                                <View className="w-10 h-10 rounded-full bg-blue-500 items-center justify-center border-2 border-white" style={{ elevation: 4 }}>
+                                    <MaterialCommunityIcons name="car" size={20} color="white" />
+                                </View>
+                            </Marker>
+                        )}
+                        {pickupCoords && (
+                            <Marker coordinate={pickupCoords} title="Pickup">
+                                <View className="w-10 h-10 rounded-full bg-orange-500 items-center justify-center border-2 border-white" style={{ elevation: 4 }}>
+                                    <MaterialIcons name="location-on" size={20} color="white" />
+                                </View>
+                            </Marker>
+                        )}
+                        {dropCoords && (
+                            <Marker coordinate={dropCoords} title="Dropoff">
+                                <View className="w-10 h-10 rounded-full bg-red-500 items-center justify-center border-2 border-white" style={{ elevation: 4 }}>
+                                    <MaterialIcons name="flag" size={20} color="white" />
+                                </View>
+                            </Marker>
+                        )}
+                        {(ridePhase === 'heading_to_pickup' || ridePhase === 'arrived_at_pickup') && routeToPickup?.points && (
+                            <Polyline coordinates={routeToPickup.points} strokeColor="#10B981" strokeWidth={6} />
+                        )}
+                        {(ridePhase === 'ride_started' || ridePhase === 'heading_to_dropoff') && routeToDropoff?.points && (
+                            <Polyline coordinates={routeToDropoff.points} strokeColor="#F59E0B" strokeWidth={6} />
+                        )}
+                    </MapView>
+
+                    <TouchableOpacity onPress={() => navigation.goBack()} className="absolute top-4 left-4 bg-white rounded-full p-2" style={{ elevation: 4 }}>
+                        <Entypo name="chevron-left" size={24} color="#111827" />
+                    </TouchableOpacity>
+
+                    <View className="absolute top-4 left-0 right-0 items-center">
+                        <Text className="text-base font-bold text-gray-800 bg-white px-4 py-1.5 rounded-full" style={{ elevation: 3 }}>
+                            {ridePhase === 'heading_to_pickup' ? 'Heading to Pickup' :
+                                ridePhase === 'arrived_at_pickup' ? 'Arrived at Pickup' :
+                                    ridePhase === 'ride_started' ? 'Ride Started' :
+                                        ridePhase === 'heading_to_dropoff' ? 'Heading to Dropoff' : 'Completed'}
+                        </Text>
+                    </View>
+
+                    <View className="absolute bottom-4 right-4 flex-col space-y-2">
+                        <TouchableOpacity onPress={focusOnCurrentLocation} className="bg-white rounded-full p-3 shadow-lg" style={{ elevation: 5 }}>
+                            <Ionicons name="locate" size={24} color="#3B82F6" />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={focusOnPickup} className="bg-white rounded-full p-3 shadow-lg" style={{ elevation: 5 }}>
+                            <MaterialIcons name="location-on" size={24} color="#F59E0B" />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={focusOnDrop} className="bg-white rounded-full p-3 shadow-lg" style={{ elevation: 5 }}>
+                            <MaterialIcons name="flag" size={24} color="#EF4444" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {(loadingRoute || loadingDropRoute) && (
+                        <View className="absolute top-16 right-4 bg-white rounded-full px-3 py-2 flex-row items-center gap-2" style={{ elevation: 4 }}>
+                            <ActivityIndicator size="small" color="#10B981" />
+                            <Text className="text-xs text-gray-600">Routing...</Text>
+                        </View>
+                    )}
+
+                    {isNearPickup && ridePhase === 'heading_to_pickup' && (
+                        <View className="absolute bottom-4 left-0 right-0 items-center">
+                            <View className="bg-green-500 rounded-full px-5 py-2 flex-row items-center gap-2" style={{ elevation: 4 }}>
+                                <MaterialCommunityIcons name="map-marker-check" size={18} color="white" />
+                                <Text className="text-white font-bold text-sm">You're at pickup!</Text>
+                            </View>
+                        </View>
+                    )}
+                    {isNearDropoff && (ridePhase === 'ride_started' || ridePhase === 'heading_to_dropoff') && (
+                        <View className="absolute bottom-4 left-0 right-0 items-center">
+                            <View className="bg-green-500 rounded-full px-5 py-2 flex-row items-center gap-2" style={{ elevation: 4 }}>
+                                <MaterialCommunityIcons name="map-marker-check" size={18} color="white" />
+                                <Text className="text-white font-bold text-sm">You're at dropoff!</Text>
+                            </View>
+                        </View>
+                    )}
+                </View>
+
+                {/* Bottom Sheet */}
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    className="flex-1 bg-white rounded-t-3xl -mt-5 px-5 pt-4"
+                    contentContainerStyle={{ paddingBottom: 40 }}
+                >
+                    <View className="flex-row items-center justify-between mb-4">
+                        <View className="flex-row items-center gap-2">
+                            <View className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                            <Text className="text-sm font-bold text-green-600">
+                                {ridePhase === 'heading_to_pickup' ? 'ON THE WAY' :
+                                    ridePhase === 'arrived_at_pickup' ? 'AT PICKUP' :
+                                        ridePhase === 'ride_started' ? 'RIDE STARTED' :
+                                            ridePhase === 'heading_to_dropoff' ? 'HEADING TO DROPOFF' : 'COMPLETED'}
+                            </Text>
+                        </View>
+                        <View className="items-end">
+                            <Text className="text-xs text-gray-400">ARRIVAL</Text>
+                            <Text className="text-base font-bold text-orange-500">{getArrivalTime()}</Text>
+                        </View>
+                    </View>
+
+                    <View className="flex-row gap-3 mb-4">
+                        <View className="flex-1 bg-orange-50 rounded-2xl p-4">
+                            <Text className="text-xs text-gray-500 mb-1">
+                                {ridePhase === 'heading_to_pickup' || ridePhase === 'arrived_at_pickup' ? 'To Pickup' : 'To Dropoff'}
+                            </Text>
+                            <Text className="text-2xl font-bold text-orange-500">
+                                {ridePhase === 'heading_to_pickup' || ridePhase === 'arrived_at_pickup'
+                                    ? eta !== null ? `${eta} min` : routeToPickup ? `${Math.round(routeToPickup.duration)} min` : '-- min'
+                                    : dropoffEta !== null ? `${dropoffEta} min` : routeToDropoff ? `${Math.round(routeToDropoff.duration)} min` : '-- min'}
+                            </Text>
+                        </View>
+                        <View className="flex-1 bg-gray-50 rounded-2xl p-4">
+                            <Text className="text-xs text-gray-500 mb-1">Distance</Text>
+                            <Text className="text-2xl font-bold text-gray-900">{getDistanceDisplay()}</Text>
+                        </View>
+                    </View>
+
+                    {(ridePhase === 'heading_to_pickup' || ridePhase === 'arrived_at_pickup') && <RouteProgressBar progress={routeProgress} />}
+
+                    <View className="bg-gray-50 rounded-2xl p-4 mb-4">
+                        <View className="flex-row items-start gap-3">
+                            <View className="w-9 h-9 rounded-full bg-orange-100 items-center justify-center">
+                                <MaterialIcons name="location-on" size={18} color="#F59E0B" />
+                            </View>
+                            <View className="flex-1">
+                                <Text className="text-xs font-bold text-gray-400 mb-1">PICKUP LOCATION</Text>
+                                <Text className="text-sm font-semibold text-gray-900">{data?.pickupLocation?.address || '—'}</Text>
+                            </View>
+                        </View>
+                        {dropCoords && (
+                            <View className="flex-row items-start gap-3 mt-3 pt-3 border-t border-gray-200">
+                                <View className="w-9 h-9 rounded-full bg-red-100 items-center justify-center">
+                                    <MaterialIcons name="flag" size={18} color="#EF4444" />
+                                </View>
+                                <View className="flex-1">
+                                    <Text className="text-xs font-bold text-gray-400 mb-1">DROPOFF LOCATION</Text>
+                                    <Text className="text-sm font-semibold text-gray-900">{data?.dropLocation?.address || '—'}</Text>
+                                </View>
+                            </View>
+                        )}
+                    </View>
+
+                    <View className="flex-row gap-3 mb-5">
+                        <View className="flex-1 bg-white border border-gray-100 rounded-2xl p-3" style={{ elevation: 1 }}>
+                            <Text className="text-xs text-gray-400 mb-1">VEHICLE</Text>
+                            <Text className="text-sm font-bold text-gray-900">{data?.driverId?.vehicleType || data?.vehicleType || '—'}</Text>
+                            <Text className="text-xs text-gray-500 mt-0.5">Plate: {data?.driverId?.vehicleNumber || '—'}</Text>
+                        </View>
+                        <View className="flex-1 bg-white border border-gray-100 rounded-2xl p-3 flex-row items-center justify-between" style={{ elevation: 1 }}>
+                            <View>
+                                <Text className="text-xs text-gray-400 mb-1">CUSTOMER</Text>
+                                <Text className="text-sm font-bold text-gray-900">{data?.userId?.fullName || '—'}</Text>
+                            </View>
+                            <Pressable onPress={() => Linking.openURL(`tel:${data?.userId?.phoneNumber || ''}`)} className="w-10 h-10 rounded-full bg-green-50 items-center justify-center">
+                                <Ionicons name="call-outline" size={20} color="#10B981" />
+                            </Pressable>
+                        </View>
+                    </View>
+
+                    {isShowArrivedButton && (
+                        <Animated.View style={{ transform: [{ scale: isNearPickup ? pulseAnim : 1 }] }} className="mb-3">
+                            <TouchableOpacity
+                                onPress={handleArrived}
+                                disabled={isActionLoading}
+                                className="rounded-2xl py-4 items-center justify-center"
+                                style={{ backgroundColor: isNearPickup ? '#10B981' : '#D1FAE5' }}
+                            >
+                                {isActionLoading ? <ActivityIndicator size="small" color="white" /> : (
+                                    <View className="flex-row items-center gap-2">
+                                        <MaterialCommunityIcons name="map-marker-check" size={22} color={isNearPickup ? 'white' : '#6EE7B7'} />
+                                        <Text className="font-bold text-lg" style={{ color: isNearPickup ? 'white' : '#6EE7B7' }}>
+                                            {isNearPickup ? 'ARRIVED AT PICKUP' : `${getDistanceDisplay()} away`}
+                                        </Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                        </Animated.View>
+                    )}
+
+                    {isShowStartButton && (
+                        <TouchableOpacity onPress={handleStartRide} disabled={isActionLoading} className="bg-blue-500 rounded-2xl py-4 items-center justify-center mb-3">
+                            {isActionLoading ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold text-lg">START RIDE</Text>}
+                        </TouchableOpacity>
+                    )}
+
+                    {isShowCompleteButton && (
+                        <Animated.View style={{ transform: [{ scale: isNearDropoff ? pulseAnim : 1 }] }} className="mb-20">
+                            <TouchableOpacity
+                                onPress={handleCompleteRide}
+                                disabled={isActionLoading}
+                                className="rounded-2xl py-4 items-center justify-center"
+                                style={{ backgroundColor: isNearDropoff ? '#10B981' : '#D1FAE5' }}
+                            >
+                                {isActionLoading ? <ActivityIndicator size="small" color="white" /> : (
+                                    <View className="flex-row items-center gap-2">
+                                        <MaterialCommunityIcons name="check-circle" size={22} color={isNearDropoff ? 'white' : '#6EE7B7'} />
+                                        <Text className="font-bold text-lg" style={{ color: isNearDropoff ? 'white' : '#6EE7B7' }}>
+                                            {isNearDropoff ? 'COMPLETE RIDE' : `${getDistanceDisplay()} to dropoff`}
+                                        </Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                        </Animated.View>
+                    )}
+                </ScrollView>
+            </View>
+
+            <Toast
+                visible={toast.visible}
+                message={toast.message}
+                type={toast.type}
+                fadeAnim={toast.fadeAnim}
+                buttons={toast.buttons}
+                style={toast.style}
+                onHide={toast.hide}
+            />
+        </SafeAreaView>
+    );
+};
+
+export default HeadingToPickup;
