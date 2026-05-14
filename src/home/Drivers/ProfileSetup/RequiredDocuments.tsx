@@ -1,4 +1,4 @@
-import { IMAGE_UPLOAD, IPA_BASE } from '@env'
+import { IPA_BASE } from '@env'
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { NavigationProp, useNavigation, useRoute } from '@react-navigation/native'
@@ -18,15 +18,17 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Toast, useToast } from '../../../Components/useToost'
 import { AuthStackParamList } from '../../../Navigation/type'
 
-const API_BASE_URL = IPA_BASE
-
 type UploadKey = 'cdl' | 'insurance' | 'dot' | 'truck'
 
-type ImageItem = {
-  uri: string
-  name: string
-  type: string
+// Maps UploadKey → multipart field name expected by POST /driver/profile/complete
+const FIELD_NAME: Record<UploadKey, string> = {
+  cdl: 'cdlLicense',
+  insurance: 'insurance',
+  dot: 'dotNumber',
+  truck: 'truckPhoto',
 }
+
+type ImageItem = { uri: string; name: string; type: string }
 
 const uploadOptions: {
   key: UploadKey
@@ -35,45 +37,45 @@ const uploadOptions: {
   subtitle: string
   icon: keyof typeof Ionicons.glyphMap
 }[] = [
-    {
-      key: 'cdl',
-      label: 'CDL\nLicense',
-      title: 'Upload CDL License Photo',
-      subtitle: 'Clear image of your CDL license',
-      icon: 'card-outline',
-    },
-    {
-      key: 'insurance',
-      label: 'Insurance\nPhoto',
-      title: 'Upload Insurance Photo',
-      subtitle: 'Clear image of insurance paper/photo',
-      icon: 'shield-checkmark-outline',
-    },
-    {
-      key: 'dot',
-      label: 'DOT\nPhoto',
-      title: 'Upload DOT Photo',
-      subtitle: 'Clear image showing DOT info',
-      icon: 'document-text-outline',
-    },
-    {
-      key: 'truck',
-      label: 'Truck\nPhoto',
-      title: 'Upload Truck Photo',
-      subtitle: 'Clear photo of your truck',
-      icon: 'car-sport-outline',
-    },
-  ]
+  {
+    key: 'cdl',
+    label: 'CDL\nLicense',
+    title: 'Upload CDL License Photo',
+    subtitle: 'Clear image of your CDL license',
+    icon: 'card-outline',
+  },
+  {
+    key: 'insurance',
+    label: 'Insurance\nPhoto',
+    title: 'Upload Insurance Photo',
+    subtitle: 'Clear image of insurance paper/photo',
+    icon: 'shield-checkmark-outline',
+  },
+  {
+    key: 'dot',
+    label: 'DOT\nPhoto',
+    title: 'Upload DOT Photo',
+    subtitle: 'Clear image showing DOT information',
+    icon: 'document-text-outline',
+  },
+  {
+    key: 'truck',
+    label: 'Truck\nPhoto',
+    title: 'Upload Truck Photo',
+    subtitle: 'Clear photo of your truck',
+    icon: 'car-sport-outline',
+  },
+]
 
 const RequiredDocuments = () => {
   const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
   const route = useRoute<any>()
   const toast = useToast()
 
-  const accessToken = route?.params?.accessToken || route?.params?.token || null
+  const accessToken: string = route.params?.accessToken ?? ''
 
   const [selected, setSelected] = useState<UploadKey>('cdl')
-  const [imagesa, setImagesa] = useState<Record<UploadKey, ImageItem | null>>({
+  const [images, setImages] = useState<Record<UploadKey, ImageItem | null>>({
     cdl: null,
     insurance: null,
     dot: null,
@@ -86,20 +88,14 @@ const RequiredDocuments = () => {
     [selected]
   )
 
-  const uploadedCount = useMemo(() => {
-    return Object.values(imagesa).filter(Boolean).length
-  }, [imagesa])
-
-  const allUploaded = useMemo(() => {
-    return uploadOptions.every((item) => !!imagesa[item.key])
-  }, [imagesa])
+  const uploadedCount = useMemo(() => Object.values(images).filter(Boolean).length, [images])
+  const allUploaded = useMemo(() => uploadOptions.every((item) => !!images[item.key]), [images])
 
   const pickImage = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
-
       if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Gallery permission allow koro.')
+        Alert.alert('Permission needed', 'Gallery access is required to upload documents.')
         return
       }
 
@@ -112,64 +108,42 @@ const RequiredDocuments = () => {
       if (result.canceled) return
 
       const asset = result.assets[0]
-      const fileName =
-        asset.fileName || `${selected}-${Date.now()}.jpg`
-
-      setImagesa((prev) => ({
+      setImages((prev) => ({
         ...prev,
         [selected]: {
           uri: asset.uri,
-          name: fileName,
+          name: asset.fileName || `${selected}-${Date.now()}.jpg`,
           type: asset.mimeType || 'image/jpeg',
         },
       }))
-    } catch (error) {
-      console.log('Image pick error:', error)
-      toast.show({
-        message: 'Image select korte problem hoise',
-        type: 'error',
-        style: 'top',
-      })
+    } catch {
+      toast.show({ message: 'Failed to select image', type: 'error', style: 'top' })
     }
   }
 
   const removeImage = (key: UploadKey) => {
-    setImagesa((prev) => ({
-      ...prev,
-      [key]: null,
-    }))
+    setImages((prev) => ({ ...prev, [key]: null }))
   }
 
   const handleSubmit = async () => {
     if (!allUploaded) {
-      toast.show({
-        message: '4 ta image upload kora lagbe',
-        type: 'error',
-        style: 'top',
-      })
+      toast.show({ message: 'Please upload all 4 documents before submitting.', type: 'error', style: 'top' })
       return
     }
 
+    setSubmitting(true)
     try {
-      setSubmitting(true)
-
       const token = accessToken || (await AsyncStorage.getItem('vToken'))
-
       if (!token) {
-        toast.show({
-          message: 'Access token paoa jay nai',
-          type: 'error',
-          style: 'top',
-        })
+        toast.show({ message: 'Authentication failed. Please log in again.', type: 'error', style: 'top' })
         return
       }
 
       const formData = new FormData()
-
       uploadOptions.forEach((item) => {
-        const file = imagesa[item.key]
+        const file = images[item.key]
         if (file) {
-          formData.append('images', {
+          formData.append(FIELD_NAME[item.key], {
             uri: file.uri,
             name: file.name,
             type: file.type,
@@ -177,41 +151,23 @@ const RequiredDocuments = () => {
         }
       })
 
-      const res = await axios.post(`${API_BASE_URL}${IMAGE_UPLOAD}`, formData, {
+      const res = await axios.post(`${IPA_BASE}/driver/profile/complete`, formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 20000,
+        timeout: 30000,
       })
 
-      const data = res?.data
-      console.log('Upload response:', data)
-
-      if (data?.success === true) {
-        toast.show({
-          message: data?.message || 'Images uploaded successfully',
-          type: 'success',
-          style: 'top',
-        })
-
+      if (res.data?.success === true) {
+        toast.show({ message: 'Documents submitted! Your profile is under review.', type: 'success', style: 'top' })
         navigation.navigate('SignIn')
       } else {
-        toast.show({
-          message: data?.message || 'Upload failed',
-          type: 'error',
-          style: 'top',
-        })
+        toast.show({ message: res.data?.message || 'Upload failed', type: 'error', style: 'top' })
       }
-    } catch (error: any) {
-      console.log('Upload failed:', error)
-      console.log('Upload server response:', error?.response?.data)
-
+    } catch (err: any) {
       toast.show({
-        message:
-          error?.response?.data?.message ||
-          error?.message ||
-          'Something went wrong',
+        message: err?.response?.data?.message || err?.message || 'Something went wrong',
         type: 'error',
         style: 'top',
       })
@@ -231,54 +187,35 @@ const RequiredDocuments = () => {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         <View className='px-5 pt-5'>
-          <Text className='text-2xl font-black text-gray-900 mb-2'>
-            Required Images
-          </Text>
+          <Text className='text-2xl font-black text-gray-900 mb-2'>Required Documents</Text>
           <Text className='text-gray-500 text-base mb-6 leading-5'>
-            4 ta clear image upload koro. Submit korar somoy sob image ekshathe verify
-            er jonno send hobe.
+            Upload clear photos of all 4 documents. They will be submitted together for verification.
           </Text>
 
-          <Text className='text-lg font-bold text-gray-900 mb-4'>
-            Select image type
-          </Text>
+          <Text className='text-lg font-bold text-gray-900 mb-4'>Select document type</Text>
 
           <View className='flex-row flex-wrap justify-between mb-6'>
             {uploadOptions.map((item) => {
               const active = selected === item.key
-              const hasImage = !!imagesa[item.key]
-
+              const hasImage = !!images[item.key]
               return (
                 <TouchableOpacity
                   key={item.key}
                   onPress={() => setSelected(item.key)}
                   activeOpacity={0.85}
-                  className={`w-[48%] rounded-2xl p-4 mb-3 border-2 ${active ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-white'
-                    }`}
+                  className={`w-[48%] rounded-2xl p-4 mb-3 border-2 ${active ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-white'}`}
                 >
                   <View className='flex-row items-start justify-between'>
-                    <View
-                      className={`w-12 h-12 rounded-2xl items-center justify-center ${active ? 'bg-green-100' : 'bg-gray-100'
-                        }`}
-                    >
-                      <Ionicons
-                        name={item.icon}
-                        size={22}
-                        color={active ? '#16A34A' : '#9CA3AF'}
-                      />
+                    <View className={`w-12 h-12 rounded-2xl items-center justify-center ${active ? 'bg-green-100' : 'bg-gray-100'}`}>
+                      <Ionicons name={item.icon} size={22} color={active ? '#16A34A' : '#9CA3AF'} />
                     </View>
-
                     {hasImage ? (
                       <View className='w-6 h-6 rounded-full bg-green-500 items-center justify-center'>
                         <Ionicons name='checkmark' size={16} color='white' />
                       </View>
                     ) : null}
                   </View>
-
-                  <Text
-                    className={`mt-3 text-sm font-bold ${active ? 'text-green-700' : 'text-gray-900'
-                      }`}
-                  >
+                  <Text className={`mt-3 text-sm font-bold ${active ? 'text-green-700' : 'text-gray-900'}`}>
                     {item.label}
                   </Text>
                 </TouchableOpacity>
@@ -290,26 +227,14 @@ const RequiredDocuments = () => {
             <View style={{ position: 'relative' }}>
               <View
                 className='w-56 h-56 rounded-[28px] bg-white items-center justify-center overflow-hidden'
-                style={{
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 12,
-                  elevation: 8,
-                }}
+                style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 8 }}
               >
-                {imagesa[selected]?.uri ? (
-                  <Image
-                    source={{ uri: imagesa[selected]?.uri }}
-                    style={{ width: '100%', height: '100%' }}
-                    resizeMode='cover'
-                  />
+                {images[selected]?.uri ? (
+                  <Image source={{ uri: images[selected]?.uri }} style={{ width: '100%', height: '100%' }} resizeMode='cover' />
                 ) : (
                   <View className='items-center px-6'>
                     <Ionicons name={selectedOption.icon} size={60} color='#D1D5DB' />
-                    <Text className='text-gray-400 text-center mt-3 font-medium'>
-                      No image selected
-                    </Text>
+                    <Text className='text-gray-400 text-center mt-3 font-medium'>No image selected</Text>
                   </View>
                 )}
               </View>
@@ -321,13 +246,7 @@ const RequiredDocuments = () => {
               >
                 <View
                   className='w-14 h-14 rounded-full bg-green-500 items-center justify-center border-4 border-white'
-                  style={{
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.15,
-                    shadowRadius: 4,
-                    elevation: 4,
-                  }}
+                  style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 4 }}
                 >
                   <Ionicons name='image-outline' size={22} color='white' />
                 </View>
@@ -335,13 +254,8 @@ const RequiredDocuments = () => {
             </View>
           </View>
 
-          <Text className='text-xl font-bold text-center text-gray-900 mb-2'>
-            {selectedOption.title}
-          </Text>
-
-          <Text className='text-center text-gray-500 text-base mb-5 leading-5'>
-            {selectedOption.subtitle}
-          </Text>
+          <Text className='text-xl font-bold text-center text-gray-900 mb-2'>{selectedOption.title}</Text>
+          <Text className='text-center text-gray-500 text-base mb-5 leading-5'>{selectedOption.subtitle}</Text>
 
           <View className='flex-row gap-3 mb-6'>
             <TouchableOpacity
@@ -351,11 +265,11 @@ const RequiredDocuments = () => {
             >
               <Ionicons name='cloud-upload-outline' size={20} color='#374151' />
               <Text className='text-gray-700 ml-2 font-bold'>
-                {imagesa[selected] ? 'Replace Image' : 'Choose Image'}
+                {images[selected] ? 'Replace Image' : 'Choose Image'}
               </Text>
             </TouchableOpacity>
 
-            {imagesa[selected] ? (
+            {images[selected] ? (
               <TouchableOpacity
                 className='px-5 py-4 rounded-2xl bg-red-50 items-center justify-center border border-red-200'
                 activeOpacity={0.8}
@@ -369,39 +283,20 @@ const RequiredDocuments = () => {
           <View className='bg-white rounded-3xl p-4 mb-6 border border-gray-100'>
             <View className='flex-row items-center justify-between mb-3'>
               <Text className='text-lg font-black text-gray-900'>Upload Progress</Text>
-              <Text className='text-sm font-bold text-green-600'>
-                {uploadedCount}/4 Completed
-              </Text>
+              <Text className='text-sm font-bold text-green-600'>{uploadedCount}/4 Completed</Text>
             </View>
 
             {uploadOptions.map((item) => {
-              const done = !!imagesa[item.key]
+              const done = !!images[item.key]
               return (
-                <View
-                  key={item.key}
-                  className='flex-row items-center justify-between py-3 border-b border-gray-100'
-                >
+                <View key={item.key} className='flex-row items-center justify-between py-3 border-b border-gray-100'>
                   <View className='flex-row items-center flex-1 pr-3'>
-                    <View
-                      className={`w-9 h-9 rounded-full items-center justify-center mr-3 ${done ? 'bg-green-100' : 'bg-gray-100'
-                        }`}
-                    >
-                      <Ionicons
-                        name={done ? 'checkmark' : item.icon}
-                        size={18}
-                        color={done ? '#16A34A' : '#9CA3AF'}
-                      />
+                    <View className={`w-9 h-9 rounded-full items-center justify-center mr-3 ${done ? 'bg-green-100' : 'bg-gray-100'}`}>
+                      <Ionicons name={done ? 'checkmark' : item.icon} size={18} color={done ? '#16A34A' : '#9CA3AF'} />
                     </View>
-
-                    <Text className='text-gray-900 font-semibold'>
-                      {item.title}
-                    </Text>
+                    <Text className='text-gray-900 font-semibold'>{item.title}</Text>
                   </View>
-
-                  <Text
-                    className={`text-xs font-bold ${done ? 'text-green-600' : 'text-gray-400'
-                      }`}
-                  >
+                  <Text className={`text-xs font-bold ${done ? 'text-green-600' : 'text-gray-400'}`}>
                     {done ? 'READY' : 'PENDING'}
                   </Text>
                 </View>
@@ -414,15 +309,12 @@ const RequiredDocuments = () => {
               <Ionicons name='information' size={16} color='white' />
             </View>
             <Text className='text-orange-700 flex-1 text-sm leading-5'>
-              Secure Transmission: Your data is encrypted using
-              256-bit SSLprotection. Verification usuaIly ta kes 2-4
-              hours.
+              Your data is encrypted with 256-bit SSL protection. Verification usually takes 2–4 hours.
             </Text>
           </View>
 
           <TouchableOpacity
-            className={`rounded-2xl py-5 items-center flex-row justify-center ${allUploaded && !submitting ? 'bg-green-500' : 'bg-gray-300'
-              }`}
+            className={`rounded-2xl py-5 items-center flex-row justify-center ${allUploaded && !submitting ? 'bg-green-500' : 'bg-gray-300'}`}
             activeOpacity={0.85}
             onPress={handleSubmit}
             disabled={!allUploaded || submitting}
@@ -431,9 +323,7 @@ const RequiredDocuments = () => {
               <ActivityIndicator size='small' color='white' />
             ) : (
               <>
-                <Text className='text-white font-bold text-lg mr-2'>
-                  SUBMIT FOR VERIFICATION
-                </Text>
+                <Text className='text-white font-bold text-lg mr-2'>SUBMIT FOR VERIFICATION</Text>
                 <Ionicons name='arrow-forward' size={20} color='white' />
               </>
             )}
@@ -441,15 +331,7 @@ const RequiredDocuments = () => {
         </View>
       </ScrollView>
 
-      <Toast
-        style={toast.style}
-        visible={toast.visible}
-        message={toast.message}
-        type={toast.type}
-        fadeAnim={toast.fadeAnim}
-        buttons={toast.buttons}
-        onHide={toast.hide}
-      />
+      <Toast style={toast.style} visible={toast.visible} message={toast.message} type={toast.type} fadeAnim={toast.fadeAnim} buttons={toast.buttons} onHide={toast.hide} />
     </SafeAreaView>
   )
 }

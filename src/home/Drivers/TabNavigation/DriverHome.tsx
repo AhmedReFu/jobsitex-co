@@ -1,4 +1,4 @@
-import { ACCEPT_JOBS, AVAILABLE_JOBS, DRIVER_DETAILS, IPA_BASE, LOCATION_UPDATE, STATUS_DRIVER } from '@env'
+import { AVAILABLE_JOBS, DRIVER_DETAILS, IPA_BASE, LOCATION_UPDATE, STATUS_DRIVER } from '@env'
 import { Entypo, FontAwesome6, Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native'
@@ -35,18 +35,18 @@ const END_POINTS = {
     LOCATION_UPDATE,
     AVAILABLE_JOBS,
     DRIVER_DETAILS,
-    ACCEPT_JOBS,
 }
 
 export type SafeDriver = {
-    _id: string
+    id: string
     vehicleType: string
-    vehicleCapacity: string
-    vehicleColor: number
-    hourRate: number
-    status: string
-    isApproved: boolean
-    images: { id: string; url: string; _id: string }[]
+    numberPlate: string | null
+    truckModel: string | null
+    hourlyRate: number
+    driverStatus: string
+    isAvailable: boolean
+    isProfileComplete: boolean
+    totalEarnings: number
 }
 
 type ApiJob = {
@@ -203,18 +203,19 @@ const DriverHome = () => {
                 timeout: 15000,
             })
 
-            const d = res.data?.data?.driver
+            const d = res.data?.data
             if (!d) return
 
             const safeDriver: SafeDriver = {
-                _id: d._id,
-                vehicleType: d.vehicleType,
-                vehicleCapacity: d.vehicleCapacity,
-                vehicleColor: d.vehicleColor,
-                hourRate: d.hourRate,
-                status: d.status,
-                isApproved: d.isApproved,
-                images: d.images ?? [],
+                id: d.id,
+                vehicleType: d.truckType?.name ?? 'Truck',
+                numberPlate: d.numberPlate ?? null,
+                truckModel: d.truckModel ?? null,
+                hourlyRate: d.hourlyRate ?? 0,
+                driverStatus: d.driverStatus ?? 'PENDING',
+                isAvailable: d.isAvailable ?? false,
+                isProfileComplete: d.isProfileComplete ?? false,
+                totalEarnings: d.totalEarnings ?? 0,
             }
 
             setDriver(safeDriver)
@@ -320,7 +321,7 @@ const DriverHome = () => {
             if (!token) return
             await axios.patch(
                 `${API_BASE_URL}${END_POINTS.STATUS_DRIVER}`,
-                { status },
+                { isAvailable: status === 'active' },
                 { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 }
             )
         } catch (error: any) {

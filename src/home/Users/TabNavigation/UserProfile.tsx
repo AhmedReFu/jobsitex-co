@@ -74,16 +74,14 @@ const UserProfile = () => {
                 const fileName = `profile_${Date.now()}.${fileExtension}`
 
                 // @ts-ignore - React Native FormData blob handling
-                formData.append('image', {
+                formData.append('avatar', {
                     uri: asset.uri,
                     type: `image/${fileExtension}`,
                     name: fileName
                 })
 
-                // Also send other user data to keep them updated
                 if (user?.name) formData.append('fullName', user.name)
-                if (user?.phone) formData.append('phoneNumber', user.phone)
-                if (user?.address) formData.append('address', user.address)
+                if (user?.phone) formData.append('mobileNumber', user.phone)
 
                 const success = await updateProfile(formData)
 

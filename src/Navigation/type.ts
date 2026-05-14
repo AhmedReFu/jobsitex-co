@@ -7,7 +7,7 @@ export type AuthStackParamList = {
   Profile: undefined;
   UserProfile: undefined;
   ProfileSetup: { accessToken?: string; email?: string };
-  RequiredDocuments: undefined;
+  RequiredDocuments: { accessToken?: string };
   ResetPassword: undefined;
   OtpVerification: {
     email: string;

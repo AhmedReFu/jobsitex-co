@@ -82,13 +82,11 @@ const UserScheduleShifting = () => {
 
   const formatTimeForAPI = (time: string) => {
     const [timePart, period] = time.split(' ')
-    let [hours, minutes] = timePart.split(':')
-    if (period === 'PM' && hours !== '12') {
-      hours = String(parseInt(hours) + 12)
-    } else if (period === 'AM' && hours === '12') {
-      hours = '00'
-    }
-    return `${hours}:${minutes}`
+    const [hoursStr, minutes] = timePart.split(':')
+    let h = parseInt(hoursStr, 10)
+    if (period === 'PM' && h !== 12) h += 12
+    else if (period === 'AM' && h === 12) h = 0
+    return `${String(h).padStart(2, '0')}:${minutes}`
   }
 
   const handleProceed = () => {

@@ -58,18 +58,17 @@ export const useLocation = () => {
 
       if (addresses.length > 0) {
         const address = addresses[0]
-        const city = address.city || address.region || 'Unknown'
+        const city = address.city || address.subregion || address.district || address.region || address.name || address.country || 'Unknown'
         const state = address.region || ''
         const stateCode = state ? state.substring(0, 2).toUpperCase() : ''
-        
-        // Store full address details
+
         setLocationAddress({
           city: city,
           state: address.region || '',
           country: address.country || '',
           formattedAddress: `${city}${stateCode ? ', ' + stateCode : ''}`
         })
-        
+
         return `${city}${stateCode ? ', ' + stateCode : ''}`
       }
       return 'Unknown Location'
@@ -92,10 +91,10 @@ export const useLocation = () => {
 
       if (addresses.length > 0) {
         const address = addresses[0]
-        const city = address.city || address.region || 'Unknown'
+        const city = address.city || address.subregion || address.district || address.region || address.name || address.country || 'Unknown'
         const state = address.region || ''
         const stateCode = state ? state.substring(0, 2).toUpperCase() : ''
-        
+
         return {
           city: city,
           state: address.region || '',

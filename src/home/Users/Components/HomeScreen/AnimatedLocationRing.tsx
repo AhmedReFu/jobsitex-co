@@ -1,8 +1,7 @@
-import React, { useRef, useEffect } from 'react'
-import { Animated, Easing, TouchableOpacity, Image, View } from 'react-native'
-import { Images } from '../../../../constants'
+import { Ionicons } from '@expo/vector-icons'
+import React, { useEffect, useRef, useState } from 'react'
+import { Animated, Easing, Image, TouchableOpacity, View } from 'react-native'
 import { useUser } from '../../../../Auth/UserContext'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 
 interface AnimatedLocationRingProps {
   onPress: () => void
@@ -10,6 +9,8 @@ interface AnimatedLocationRingProps {
 
 const AnimatedLocationRing: React.FC<AnimatedLocationRingProps> = ({ onPress }) => {
   const rotateAnim = useRef(new Animated.Value(0)).current
+  const { user, getProfileImage } = useUser()
+  const [cachedImage, setCachedImage] = useState<string | null>(null)
 
   useEffect(() => {
     Animated.loop(
@@ -22,33 +23,33 @@ const AnimatedLocationRing: React.FC<AnimatedLocationRingProps> = ({ onPress }) 
     ).start()
   }, [])
 
+  useEffect(() => {
+    getProfileImage().then((uri) => {
+      if (uri) setCachedImage(uri)
+    })
+  }, [])
+
   const rotate = rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   })
 
-  const { getProfileImage } = useUser();
-  const [profileImage, setProfileImage] = React.useState<string | null>(null);
-
-  useEffect(() => {
-    const loadProfileImage = async () => {
-      const imageUri = await getProfileImage();
-      setProfileImage(imageUri);
-    };
-
-    loadProfileImage();
-  }, []);
+  const avatarUri = user?.profileImage || cachedImage
 
   return (
     <View className='relative w-[72px] h-[72px]'>
       <Animated.View
-        style={{
-          transform: [{ rotate }],
-        }}
+        style={{ transform: [{ rotate }] }}
         className='absolute inset-0 border-2 border-dashed border-white rounded-full'
       />
       <TouchableOpacity onPress={onPress} className='absolute inset-0 items-center justify-center'>
-        <Image source={profileImage ? { uri: profileImage } : Images.MyProfile} className='w-16 h-16 rounded-full' />
+        {avatarUri ? (
+          <Image source={{ uri: avatarUri }} className='w-16 h-16 rounded-full' />
+        ) : (
+          <View className='w-16 h-16 rounded-full bg-white items-center justify-center'>
+            <Ionicons name='person' size={32} color='#4CAF50' />
+          </View>
+        )}
       </TouchableOpacity>
     </View>
   )

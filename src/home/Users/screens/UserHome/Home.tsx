@@ -9,6 +9,7 @@ import {
   View
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useUser } from '../../../../Auth/UserContext'
 import { AuthStackParamList } from '../../../../Navigation/type'
 import { useJobs } from '../../../../Utils/hooks/useJobs'
 import { useLocation } from '../../../../Utils/hooks/useLocation'
@@ -20,6 +21,7 @@ import { LocationModal } from '../../Components/HomeScreen/LocationModal'
 
 const Home = () => {
   const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
+  const { fetchUserProfile } = useUser()
   const [showLocationModal, setShowLocationModal] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
@@ -61,6 +63,13 @@ const Home = () => {
     }
     return null
   }, [activeJobs])
+
+  // Load user profile on focus so avatar is available
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserProfile()
+    }, [])
+  )
 
   // Fetch nearby trucks when location is available
   useFocusEffect(

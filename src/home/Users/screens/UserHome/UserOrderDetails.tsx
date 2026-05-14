@@ -87,10 +87,11 @@ const UserOrderDetails = () => {
     try {
       const token = await AsyncStorage.getItem('vToken')
 
-      const scheduledAt =
-        scheduleDate && scheduleTime
-          ? new Date(`${scheduleDate}T${scheduleTime}`).toISOString()
-          : undefined
+      let scheduledAt: string | undefined
+      if (scheduleDate && scheduleTime) {
+        const d = new Date(`${scheduleDate}T${scheduleTime}:00`)
+        scheduledAt = isNaN(d.getTime()) ? undefined : d.toISOString()
+      }
 
       const jobData: Record<string, any> = {
         pickupAddress: pickupLocation.address,
@@ -118,7 +119,7 @@ const UserOrderDetails = () => {
       )
 
       if (response.data?.success) {
-        const jobId = response.data.data?._id
+        const jobId = response.data.data?.job?.id ?? response.data.data?.id
         ;(navigation as any).navigate('UserFindingDrivers', {
           jobId,
           pickup: pickupLocation,

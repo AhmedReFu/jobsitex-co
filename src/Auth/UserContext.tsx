@@ -121,14 +121,13 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (response.data?.success && response.data?.data) {
         const userData: UserData = {
-          id: response.data.data._id,
-          name: response.data.data.fullName || response.data.data.name,
+          id: response.data.data.id,
+          name: response.data.data.fullName,
           email: response.data.data.email,
-          phone: response.data.data.phoneNumber,
-          address: response.data.data.address,
+          phone: response.data.data.mobileNumber,
           role: response.data.data.role,
           createdAt: response.data.data.createdAt,
-          profileImage: response.data.data.profileImage
+          profileImage: response.data.data.avatar
         }
         
         setUser(userData)
@@ -177,11 +176,10 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (response.data?.success && response.data?.data) {
         const updatedUser: UserData = {
           ...user,
-          name: response.data.data.fullName || response.data.data.name,
+          name: response.data.data.fullName,
           email: response.data.data.email,
-          phone: response.data.data.phoneNumber,
-          address: response.data.data.address,
-          profileImage: response.data.data.profileImage
+          phone: response.data.data.mobileNumber,
+          profileImage: response.data.data.avatar
         }
         
         setUser(updatedUser)
@@ -261,7 +259,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       const response = await axios.delete(
-        `${IPA_BASE}/user/delete-account`,
+        `${IPA_BASE}/user/account`,
         {
           headers: {
             'Content-Type': 'application/json',

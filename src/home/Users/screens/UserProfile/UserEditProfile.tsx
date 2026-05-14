@@ -38,8 +38,7 @@ const UserEditProfile = () => {
 
         const formData = new FormData()
         formData.append('fullName', name)
-        if (phone) formData.append('phoneNumber', phone)
-        if (address) formData.append('address', address)
+        if (phone) formData.append('mobileNumber', phone)
 
         const success = await updateProfile(formData)
         

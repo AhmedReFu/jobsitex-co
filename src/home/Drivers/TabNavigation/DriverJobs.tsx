@@ -1,4 +1,4 @@
-import { ACCEPT_ALL_JOBS, COMPLETE_JOBS, IPA_BASE } from '@env'
+import { IPA_BASE } from '@env'
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native'
@@ -17,33 +17,23 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AuthStackParamList } from '../../../Navigation/type'
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const API_BASE_URL = IPA_BASE
-const END_POINTS = { ACCEPT_ALL_JOBS, COMPLETE_JOBS }
-
 // ─── API Types ────────────────────────────────────────────────────────────────
 
+const ACTIVE_STATUSES = new Set(['BOOKED', 'ON_WAY', 'ARRIVED', 'LOADED', 'IN_TRANSIT'])
+
 type ApiJob = {
-    _id: string
-    jobId: string
-    vehicleType: string
-    status: 'accepted' | 'completed'
-    pickupLocation: { address: string; coordinates: [number, number] }
-    dropLocation: { address: string; coordinates: [number, number] }
-    distance: number
-    duration: number
-    fare: number
-    scheduleDate?: string
-    scheduleTime?: string
-    workNotes?: string
-    distentcost?: number
-    hourscost?: number
-    servicecharge?: number
+    id: string
+    status: string
+    pickupAddress: string
+    dropoffAddress: string
+    distanceKm: number | null
+    estimatedFare: number | null
+    workNote?: string | null
+    scheduledAt?: string | null
+    truckType?: { name: string } | null
+    customer?: { user?: { fullName?: string } } | null
     createdAt: string
     updatedAt: string
-    driverId?: { _id: string; vehicleType: string }
-    userId?: string
 }
 
 // ─── UI Job Type ──────────────────────────────────────────────────────────────
@@ -59,35 +49,33 @@ type Job = {
     duration: number
     fare: number
     scheduleDate?: string
-    scheduleTime?: string
     workNotes?: string
-    // completed extras
     completionDate?: string
     totalEarnings?: number
 }
 
 // ─── Mapper ───────────────────────────────────────────────────────────────────
 
-const mapJob = (item: ApiJob, tab: 'active' | 'completed'): Job => ({
-    id: item._id,
-    jobId: item.jobId,
-    status: tab,
-    vehicleType: item.vehicleType,
-    pickupAddress: item.pickupLocation.address,
-    dropAddress: item.dropLocation.address,
-    distance: item.distance,
-    duration: item.duration,
-    fare: item.fare,
-    scheduleDate: item.scheduleDate,
-    scheduleTime: item.scheduleTime,
-    workNotes: item.workNotes,
-    completionDate: tab === 'completed' ? new Date(item.updatedAt).toLocaleDateString('en-US', {
-        month: 'short', day: 'numeric', year: 'numeric',
-    }) : undefined,
-    totalEarnings: tab === 'completed'
-        ? (item.fare + (item.distentcost ?? 0) + (item.hourscost ?? 0))
-        : undefined,
-})
+const mapJob = (item: ApiJob): Job => {
+    const isActive = ACTIVE_STATUSES.has(item.status)
+    return {
+        id: item.id,
+        jobId: item.id.slice(-8).toUpperCase(),
+        status: isActive ? 'active' : 'completed',
+        vehicleType: item.truckType?.name ?? 'Truck',
+        pickupAddress: item.pickupAddress,
+        dropAddress: item.dropoffAddress,
+        distance: item.distanceKm ?? 0,
+        duration: 0,
+        fare: item.estimatedFare ?? 0,
+        scheduleDate: item.scheduledAt ?? undefined,
+        workNotes: item.workNote ?? undefined,
+        completionDate: !isActive ? new Date(item.updatedAt).toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric',
+        }) : undefined,
+        totalEarnings: !isActive ? (item.estimatedFare ?? 0) : undefined,
+    }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -303,11 +291,6 @@ const DriverJobs=()=> {
     const getToken = async () => AsyncStorage.getItem('vToken')
 
     // ─── Fetch Jobs ───────────────────────────────────────────────────────────
-    //
-    //  ACCEPT_ALL_JOBS → data.accepted[]  → active tab
-    //  COMPLETE_JOBS   → data.completed[] → completed tab
-    //  দুটো একসাথে আসে same response এ
-    //
 
     const fetchJobs = useCallback(async (isRefresh = false) => {
         try {
@@ -317,16 +300,14 @@ const DriverJobs=()=> {
             const token = await getToken()
             if (!token) return
 
-            const res = await axios.get(`${API_BASE_URL}${END_POINTS.ACCEPT_ALL_JOBS}`, {
+            const res = await axios.get(`${IPA_BASE}/jobs/driver-jobs`, {
                 headers: { Authorization: `Bearer ${token}` },
                 timeout: 15000,
             })
 
-            const accepted: ApiJob[] = res.data?.data?.accepted ?? []
-            const completed: ApiJob[] = res.data?.data?.completed ?? []
-
-            setActiveJobs(accepted.map((j) => mapJob(j, 'active')))
-            setCompletedJobs(completed.map((j) => mapJob(j, 'completed')))
+            const all: ApiJob[] = res.data?.data ?? []
+            setActiveJobs(all.filter((j) => ACTIVE_STATUSES.has(j.status)).map(mapJob))
+            setCompletedJobs(all.filter((j) => j.status === 'DELIVERED').map(mapJob))
         } catch (err: any) {
             console.error('Jobs fetch error:', err?.response?.data || err?.message)
             setError('Could not load jobs.')

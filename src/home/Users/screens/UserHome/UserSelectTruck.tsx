@@ -1,38 +1,61 @@
-// UserSelectTruck.tsx - Horizontal Slider Version
-
 import { Entypo, MaterialCommunityIcons } from '@expo/vector-icons'
 import { NavigationProp, useNavigation } from '@react-navigation/native'
-import React, { useState } from 'react'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import axios from 'axios'
+import React, { useEffect, useState } from 'react'
 import {
-  Image,
+  ActivityIndicator,
+  Alert,
+  FlatList,
   ScrollView,
   StatusBar,
   Text,
   TouchableOpacity,
-  View,
-  Alert,
-  FlatList
+  View
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Images } from '../../../../constants'
-import { AuthStackParamList } from '../../../../Navigation/type'
+import { IPA_BASE } from '@env'
 import { useBooking } from '../../../../Auth/BookingContext'
+import { AuthStackParamList } from '../../../../Navigation/type'
 
-interface TruckType {
+interface ApiTruckType {
   id: string
   name: string
-  capacity: string
-  description: string
-  basePrice: number
-  pricePerKm: number
-  icon: any
+  description: string | null
+  payloadCapacity: number | null
+  axleCount: number | null
+  baseFare: number
+  distanceRatePerKm: number
+  timeRatePerHour: number
+  capacityMultiplier: number
+  isActive: boolean
+}
+
+type IconConfig = {
   iconName: string
   iconBg: string
   iconColor: string
-  category: 'mini' | 'pickup' | 'large' | 'van' | 'container'
 }
 
 const CARD_WIDTH = 280
+
+function getIconConfig(name: string): IconConfig {
+  const lower = name.toLowerCase()
+  if (lower.includes('pickup')) return { iconName: 'truck-pickup', iconBg: '#E3F2FD', iconColor: '#2196F3' }
+  if (lower.includes('cargo') || lower.includes('van')) return { iconName: 'truck-delivery', iconBg: '#FFF3E0', iconColor: '#FF9800' }
+  if (lower.includes('box')) return { iconName: 'truck', iconBg: '#F3E5F5', iconColor: '#9C27B0' }
+  if (lower.includes('dump')) return { iconName: 'dump-truck', iconBg: '#FFEBEE', iconColor: '#FF5252' }
+  if (lower.includes('flatbed')) return { iconName: 'truck-flatbed', iconBg: '#E0F7FA', iconColor: '#00BCD4' }
+  if (lower.includes('refriger') || lower.includes('reefer')) return { iconName: 'truck-snowflake', iconBg: '#E8EAF6', iconColor: '#3F51B5' }
+  if (lower.includes('container')) return { iconName: 'truck-cargo-container', iconBg: '#F3E5F5', iconColor: '#9C27B0' }
+  return { iconName: 'truck', iconBg: '#E8F5E9', iconColor: '#4CAF50' }
+}
+
+function formatCapacity(payloadCapacity: number | null): string {
+  if (!payloadCapacity) return 'Variable capacity'
+  if (payloadCapacity >= 1000) return `~ ${(payloadCapacity / 1000).toFixed(1)} Ton`
+  return `~ ${payloadCapacity} kg`
+}
 
 const UserSelectTruck = () => {
   const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
@@ -47,117 +70,60 @@ const UserSelectTruck = () => {
     setDuration
   } = useBooking()
 
-  const [selectedTruckId, setSelectedTruckId] = useState<string | null>(
-    selectedTruck?.id || null
-  )
-  const [activeCategory, setActiveCategory] = useState<string>('all')
+  const [truckTypes, setTruckTypes] = useState<ApiTruckType[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedTruckId, setSelectedTruckId] = useState<string | null>(selectedTruck?.id || null)
 
-  const truckTypes: TruckType[] = [
-    {
-      id: '1',
-      name: 'Mini Truck',
-      capacity: '~ 1.8 Ton',
-      description: 'Perfect for small moves and deliveries',
-      basePrice: 20,
-      pricePerKm: 2.0,
-      icon: Images.Car1,
-      iconName: 'truck',
-      iconBg: '#E8F5E9',
-      iconColor: '#4CAF50',
-      category: 'mini'
-    },
-    {
-      id: '2',
-      name: 'Pickup Truck',
-      capacity: '~ 1.2 Ton',
-      description: 'Ideal for furniture and appliances',
-      basePrice: 25,
-      pricePerKm: 2.5,
-      icon: Images.Car2,
-      iconName: 'truck-pickup',
-      iconBg: '#E3F2FD',
-      iconColor: '#2196F3',
-      category: 'pickup'
-    },
-    {
-      id: '3',
-      name: 'Large Truck',
-      capacity: '~ 5 Ton',
-      description: 'For heavy and bulk items',
-      basePrice: 40,
-      pricePerKm: 3.5,
-      icon: Images.Car3,
-      iconName: 'truck-trailer',
-      iconBg: '#FFEBEE',
-      iconColor: '#FF5252',
-      category: 'large'
-    },
-    {
-      id: '4',
-      name: 'Cargo Van',
-      capacity: '~ 0.8 Ton',
-      description: 'Enclosed van for secure transport',
-      basePrice: 18,
-      pricePerKm: 1.8,
-      icon: Images.Car1,
-      iconName: 'truck-delivery',
-      iconBg: '#FFF3E0',
-      iconColor: '#FF9800',
-      category: 'van'
-    },
-    {
-      id: '5',
-      name: 'Container Truck',
-      capacity: '~ 10 Ton',
-      description: 'For large commercial shipments',
-      basePrice: 60,
-      pricePerKm: 4.5,
-      icon: Images.Car3,
-      iconName: 'truck-cargo-container',
-      iconBg: '#F3E5F5',
-      iconColor: '#9C27B0',
-      category: 'container'
+  useEffect(() => {
+    loadTruckTypes()
+  }, [])
+
+  const loadTruckTypes = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const token = await AsyncStorage.getItem('vToken')
+      const res = await axios.get(`${IPA_BASE}/fare/truck-types`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        timeout: 10000
+      })
+      const data: ApiTruckType[] = res.data?.data ?? []
+      setTruckTypes(data.filter(t => t.isActive))
+    } catch {
+      setError('Failed to load truck types. Please try again.')
+    } finally {
+      setIsLoading(false)
     }
-  ]
-
-  const categories = [
-    { id: 'all', name: 'All Trucks' },
-    { id: 'mini', name: 'Mini' },
-    { id: 'pickup', name: 'Pickup' },
-    { id: 'large', name: 'Large' },
-    { id: 'van', name: 'Van' },
-    { id: 'container', name: 'Container' }
-  ]
-
-  const filteredTrucks =
-    activeCategory === 'all'
-      ? truckTypes
-      : truckTypes.filter((t) => t.category === activeCategory)
-
-  const calculateEstimatedPrice = (truck: TruckType) => {
-    if (!routeData?.distance) return truck.basePrice
-    const distanceCost = routeData.distance * truck.pricePerKm
-    const serviceCharge = (truck.basePrice + distanceCost) * 0.1
-    return Math.round((truck.basePrice + distanceCost + serviceCharge) * 100) / 100
   }
 
-  const handleTruckSelect = (truck: TruckType) => {
-    setSelectedTruckId(truck.id)
+  const calculateEstimatedPrice = (truck: ApiTruckType): number => {
+    const distanceKm = routeData?.distance ?? 0
+    const estimatedHours = routeData?.duration ? routeData.duration / 3600 : 1
+    const total =
+      truck.baseFare * truck.capacityMultiplier +
+      distanceKm * truck.distanceRatePerKm +
+      estimatedHours * truck.timeRatePerHour
+    return Math.round(total * 100) / 100
+  }
 
-    const estimatedPriceValue = calculateEstimatedPrice(truck)
+  const handleTruckSelect = (truck: ApiTruckType) => {
+    setSelectedTruckId(truck.id)
+    const { iconBg, iconColor } = getIconConfig(truck.name)
 
     setSelectedTruck({
       id: truck.id,
       name: truck.name,
-      capacity: truck.capacity,
-      description: truck.description,
-      iconBg: truck.iconBg,
-      iconColor: truck.iconColor,
-      hourlyRate: truck.pricePerKm,
-      basePrice: truck.basePrice
+      capacity: formatCapacity(truck.payloadCapacity),
+      description: truck.description ?? '',
+      iconBg,
+      iconColor,
+      hourlyRate: truck.timeRatePerHour,
+      basePrice: truck.baseFare
     })
 
-    setEstimatedPrice(estimatedPriceValue)
+    const estimatedPrice = calculateEstimatedPrice(truck)
+    setEstimatedPrice(estimatedPrice)
     if (routeData?.distance) setDistance(routeData.distance)
     if (routeData?.duration) setDuration(routeData.duration)
   }
@@ -167,19 +133,17 @@ const UserSelectTruck = () => {
       Alert.alert('Select Truck', 'Please select a truck type to continue')
       return
     }
-
     if (!pickupLocation || !dropoffLocation) {
       Alert.alert('Missing Info', 'Please select pickup and dropoff locations')
       navigation.goBack()
       return
     }
-
     navigation.navigate('UserOrderDetails')
   }
 
-  const renderTruck = ({ item: truck }: { item: TruckType }) => {
+  const renderTruck = ({ item: truck }: { item: ApiTruckType }) => {
     const isSelected = selectedTruckId === truck.id
-    const estimatedPrice = calculateEstimatedPrice(truck)
+    const { iconName, iconBg, iconColor } = getIconConfig(truck.name)
 
     return (
       <TouchableOpacity
@@ -189,31 +153,34 @@ const UserSelectTruck = () => {
         className={`rounded-2xl p-4 ${isSelected
           ? 'border-2 border-green-500 bg-green-50'
           : 'border border-gray-200 bg-white'
-          }`}
+        }`}
       >
         <View className='flex-row gap-3'>
           <View
             className="h-16 w-16 rounded-xl items-center justify-center mb-3"
-            style={{ backgroundColor: truck.iconBg }}
+            style={{ backgroundColor: iconBg }}
           >
-            <Image source={truck.icon} className="h-12 w-12" resizeMode="contain" />
+            <MaterialCommunityIcons
+              name={iconName as any}
+              size={36}
+              color={iconColor}
+            />
           </View>
 
-          <View >
+          <View className='flex-1'>
             <Text className="text-lg font-bold text-gray-800">{truck.name}</Text>
-
-            <Text className="text-xs text-gray-500 mt-1" numberOfLines={2}>
-              {truck.description}
+            <Text className="text-sm text-gray-500 mt-0.5">
+              {formatCapacity(truck.payloadCapacity)}
             </Text>
-
-            {/* <Text className="text-sm font-bold text-green-600 mt-2">
-          Est. ${estimatedPrice}
-        </Text> */}
-
-
+            <Text className="text-xs text-gray-400 mt-1" numberOfLines={2}>
+              {truck.description ?? ''}
+            </Text>
+            <Text className="text-sm font-semibold text-green-600 mt-1">
+              From ${truck.baseFare}
+            </Text>
           </View>
-
         </View>
+
         {isSelected && (
           <View className="absolute top-3 right-3 h-6 w-6 rounded-full bg-green-500 items-center justify-center">
             <MaterialCommunityIcons name="check" size={14} color="white" />
@@ -247,47 +214,49 @@ const UserSelectTruck = () => {
           </Text>
         </View>
 
-        {/* Categories */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-5 mb-4">
-          <View className="flex-row gap-2">
-            {categories.map((category) => (
-              <TouchableOpacity
-                key={category.id}
-                onPress={() => setActiveCategory(category.id)}
-                className={`px-5 py-2 rounded-full ${activeCategory === category.id
-                  ? 'bg-green-500'
-                  : 'bg-gray-100 border border-gray-300'
-                  }`}
-              >
-                <Text
-                  className={`font-semibold ${activeCategory === category.id ? 'text-white' : 'text-gray-700'
-                    }`}
-                >
-                  {category.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
+        {/* Truck List */}
+        {isLoading ? (
+          <View className="items-center py-16">
+            <ActivityIndicator size="large" color="#4CAF50" />
+            <Text className="text-gray-500 mt-3">Loading truck types...</Text>
           </View>
-        </ScrollView>
-
-        {/* Horizontal Truck Slider */}
-        <FlatList
-          data={filteredTrucks}
-          horizontal
-          keyExtractor={(item) => item.id}
-          renderItem={renderTruck}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingLeft: 20, paddingRight: 20 }}
-          ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
-          snapToInterval={CARD_WIDTH + 12}
-          decelerationRate="fast"
-        />
+        ) : error ? (
+          <View className="items-center py-16 px-6">
+            <MaterialCommunityIcons name="truck-alert" size={48} color="#9CA3AF" />
+            <Text className="text-gray-500 mt-3 text-center">{error}</Text>
+            <TouchableOpacity
+              onPress={loadTruckTypes}
+              className="mt-4 bg-green-500 px-6 py-2 rounded-full"
+            >
+              <Text className="text-white font-semibold">Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : truckTypes.length === 0 ? (
+          <View className="items-center py-16 px-6">
+            <MaterialCommunityIcons name="truck-outline" size={48} color="#9CA3AF" />
+            <Text className="text-gray-500 mt-3 text-center">No truck types available at the moment.</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={truckTypes}
+            horizontal
+            keyExtractor={(item) => item.id}
+            renderItem={renderTruck}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingLeft: 20, paddingRight: 20 }}
+            ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
+            snapToInterval={CARD_WIDTH + 12}
+            decelerationRate="fast"
+            scrollEnabled={true}
+          />
+        )}
 
         {/* Confirm */}
         <View className="px-5 py-6 mb-8">
           <TouchableOpacity
             onPress={handleConfirm}
-            className="rounded-2xl bg-green-500 py-4"
+            className={`rounded-2xl py-4 ${selectedTruckId ? 'bg-green-500' : 'bg-gray-300'}`}
+            disabled={!selectedTruckId}
           >
             <Text className="text-center text-lg font-bold text-white">
               CONFIRM

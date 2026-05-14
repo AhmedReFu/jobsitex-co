@@ -62,6 +62,16 @@ const UserFindingDrivers = () => {
     ).start()
   }, [scaleAnim])
 
+  // Fit map to show full route once map is ready
+  const handleMapReady = () => {
+    if (routeCoordinates.length >= 2) {
+      mapRef.current?.fitToCoordinates(routeCoordinates, {
+        edgePadding: { top: 80, right: 60, bottom: Math.round(height * 0.5), left: 60 },
+        animated: true,
+      })
+    }
+  }
+
   useEffect(() => {
     if (!activeJobId) {
       setSearchStatus('error')
@@ -94,15 +104,15 @@ const UserFindingDrivers = () => {
                 workNotes,
                 costBreakdown,
                 jobId: activeJobId,
-                driver: job?.driverId
+                driver: job?.driver
                   ? {
-                      id: job.driverId._id,
-                      name: job.driverId.fullName,
-                      rating: job.driverId.rating,
-                      vehicle: job.driverId.vehicleType,
-                      plate: job.driverId.vehicleNumber,
-                      phone: job.driverId.phoneNumber,
-                      image: job.driverId.avatar,
+                      id: job.driver.id,
+                      name: job.driver.user?.fullName ?? 'Driver',
+                      rating: null,
+                      vehicle: job.driver.truckType?.name ?? '',
+                      plate: job.driver.numberPlate ?? '',
+                      phone: job.driver.user?.mobileNumber ?? '',
+                      image: job.driver.user?.avatar ?? null,
                     }
                   : null,
               })
@@ -201,10 +211,15 @@ const UserFindingDrivers = () => {
     })
   ).current
 
-  const routeCoordinates = routeData?.points || [
-    { latitude: pickup?.latitude || 23.8103, longitude: pickup?.longitude || 90.4125 },
-    { latitude: dropoff?.latitude || 23.7806, longitude: dropoff?.longitude || 90.4 },
-  ]
+  const routeCoordinates: { latitude: number; longitude: number }[] =
+    routeData?.points?.length > 1
+      ? routeData.points
+      : pickup && dropoff
+      ? [
+          { latitude: pickup.latitude, longitude: pickup.longitude },
+          { latitude: dropoff.latitude, longitude: dropoff.longitude },
+        ]
+      : []
 
   const renderContent = () => {
     if (searchStatus === 'error') {
@@ -297,11 +312,12 @@ const UserFindingDrivers = () => {
           className='h-full w-full'
           style={{ flex: 1 }}
           initialRegion={{
-            latitude: pickup?.latitude || 23.8103,
-            longitude: pickup?.longitude || 90.4125,
-            latitudeDelta: 0.0922,
-            longitudeDelta: 0.0421,
+            latitude: pickup?.latitude ?? 23.8103,
+            longitude: pickup?.longitude ?? 90.4125,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
           }}
+          onMapReady={handleMapReady}
         >
           {pickup && (
             <Marker coordinate={{ latitude: pickup.latitude, longitude: pickup.longitude }}>
@@ -323,38 +339,8 @@ const UserFindingDrivers = () => {
             <Polyline
               coordinates={routeCoordinates}
               strokeColor='#4CAF50'
-              strokeWidth={3}
-              lineDashPattern={[5, 5]}
+              strokeWidth={4}
             />
-          )}
-
-          {searchStatus === 'searching' && (
-            <>
-              <Marker
-                coordinate={{
-                  latitude: (pickup?.latitude || 23.8103) + 0.005,
-                  longitude: (pickup?.longitude || 90.4125) - 0.008,
-                }}
-              >
-                <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-                  <View className='h-8 w-8 rounded-full bg-orange-400 items-center justify-center'>
-                    <MaterialCommunityIcons name='truck' size={14} color='white' />
-                  </View>
-                </Animated.View>
-              </Marker>
-              <Marker
-                coordinate={{
-                  latitude: (pickup?.latitude || 23.8103) - 0.007,
-                  longitude: (pickup?.longitude || 90.4125) + 0.01,
-                }}
-              >
-                <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-                  <View className='h-8 w-8 rounded-full bg-orange-400 items-center justify-center'>
-                    <MaterialCommunityIcons name='truck' size={14} color='white' />
-                  </View>
-                </Animated.View>
-              </Marker>
-            </>
           )}
         </MapView>
 

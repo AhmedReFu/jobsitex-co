@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'react'
-import axios from 'axios'
-import { IPA_BASE } from '@env'
-import { LocationCoords } from '../../home/Users/Components/HomeScreen/types'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import axios from 'axios'
+import { useCallback, useState } from 'react'
 import { useAuth } from '../../Auth/AuthContext'
+import { LocationCoords } from '../../home/Users/Components/HomeScreen/types'
+import { IPA_BASE } from '@env'
 
 export interface Truck {
     id: string
@@ -20,33 +20,57 @@ export interface Truck {
     rating?: number
 }
 
-interface NearbyDriverResponse {
-    success: boolean
-    message: string
-    data: Array<{
-        _id: string
-        fullName: string
-        phoneNumber: string
-        email: string
-        distance: number
-        rating?: number
-        location: {
-            type: string
-            coordinates: [number, number]
-        }
-        driver: {
-            images: Array<{
-                id: string
-                url: string
-                _id: string
-            }>
-            status: string
-            vehicleType: 'Truck' | 'Van' | 'Trailer' | 'Flatbed' | 'Refrigerated' | 'Tanker' | 'Container' | 'Other'
-            vehicleCapacity: string
-            hourRate: number
-            isApproved: boolean
-        }
-    }>
+type ApiDriver = {
+    id: string
+    numberPlate: string | null
+    truckModel: string | null
+    hourlyRate: number
+    driverStatus: string
+    isAvailable: boolean
+    latitude: number | null
+    longitude: number | null
+    distanceKm: number
+    truckType: { id: string; name: string; description: string | null } | null
+    user: { fullName: string; avatar: string | null }
+}
+
+const ICON_MAP: Record<string, { icon: string; bg: string; color: string }> = {
+    truck: { icon: 'truck', bg: '#E8F5E9', color: '#4CAF50' },
+    van: { icon: 'truck-delivery', bg: '#E3F2FD', color: '#2196F3' },
+    trailer: { icon: 'truck-trailer', bg: '#FFEBEE', color: '#FF5252' },
+    flatbed: { icon: 'truck-flatbed', bg: '#FFF3E0', color: '#FF9800' },
+    refrigerated: { icon: 'snowflake', bg: '#E0F7FA', color: '#00BCD4' },
+    tanker: { icon: 'water', bg: '#E8EAF6', color: '#3F51B5' },
+    container: { icon: 'truck-cargo-container', bg: '#F3E5F5', color: '#9C27B0' },
+}
+
+const getIconDetails = (typeName: string) => {
+    const key = typeName?.toLowerCase().split(' ')[0] ?? ''
+    return ICON_MAP[key] ?? { icon: 'truck', bg: '#F5F5F5', color: '#757575' }
+}
+
+const mapDriverToTruck = (item: ApiDriver): Truck => {
+    const typeName = item.truckType?.name ?? 'Truck'
+    const iconDetails = getIconDetails(typeName)
+    const distanceInMeters = (item.distanceKm ?? 0) * 1000
+    const distanceStr = distanceInMeters < 1000
+        ? `${Math.round(distanceInMeters)} m`
+        : `${item.distanceKm.toFixed(1)} km`
+
+    return {
+        id: item.id,
+        name: typeName,
+        description: item.truckModel ? `${item.truckModel}` : `${typeName} available for delivery`,
+        capacity: item.hourlyRate ? `$${item.hourlyRate}/hr` : '',
+        distance: distanceStr,
+        distanceInMeters,
+        icon: iconDetails.icon,
+        iconBg: iconDetails.bg,
+        iconColor: iconDetails.color,
+        isBooked: !item.isAvailable,
+        driverId: item.id,
+        rating: undefined,
+    }
 }
 
 export const useNearbyTrucks = () => {
@@ -54,123 +78,14 @@ export const useNearbyTrucks = () => {
     const [isLoading, setIsLoading] = useState(true)
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [radius, setRadius] = useState(10000)
+    const [radius, setRadius] = useState(20)
 
-    const {signOut} = useAuth()
-
-    const getIconDetails = (vehicleType: string) => {
-        const type = vehicleType?.toLowerCase() || ''
-        
-        // Map vehicle types to appropriate icons and colors
-        switch (type) {
-            case 'truck':
-                return { 
-                    icon: 'truck', 
-                    bg: '#E8F5E9', 
-                    color: '#4CAF50' 
-                }
-            case 'van':
-                return { 
-                    icon: 'truck-delivery', 
-                    bg: '#E3F2FD', 
-                    color: '#2196F3' 
-                }
-            case 'trailer':
-                return { 
-                    icon: 'truck-trailer', 
-                    bg: '#FFEBEE', 
-                    color: '#FF5252' 
-                }
-            case 'flatbed':
-                return { 
-                    icon: 'truck-flatbed', 
-                    bg: '#FFF3E0', 
-                    color: '#FF9800' 
-                }
-            case 'refrigerated':
-                return { 
-                    icon: 'snowflake', 
-                    bg: '#E0F7FA', 
-                    color: '#00BCD4' 
-                }
-            case 'tanker':
-                return { 
-                    icon: 'water', 
-                    bg: '#E8EAF6', 
-                    color: '#3F51B5' 
-                }
-            case 'container':
-                return { 
-                    icon: 'truck-cargo-container', 
-                    bg: '#F3E5F5', 
-                    color: '#9C27B0' 
-                }
-            default:
-                return { 
-                    icon: 'truck', 
-                    bg: '#F5F5F5', 
-                    color: '#757575' 
-                }
-        }
-    }
-
-    const formatDistance = (meters: number) => {
-        if (meters < 1000) {
-            return `${Math.round(meters)} m`
-        } else {
-            return `${(meters / 1000).toFixed(1)} km`
-        }
-    }
-
-    const mapDriverToTruck = (item: any, distanceInMeters: number): Truck => {
-        const driver = item.driver
-        const vehicleType = driver?.vehicleType || 'Truck'
-        const iconDetails = getIconDetails(vehicleType)
-
-        // Create description based on vehicle type
-        let description = ''
-        switch (vehicleType?.toLowerCase()) {
-            case 'refrigerated':
-                description = 'Temperature-controlled transport for perishable goods'
-                break
-            case 'flatbed':
-                description = 'Open bed for oversized or heavy items'
-                break
-            case 'tanker':
-                description = 'Liquid transport for fuel, water, or chemicals'
-                break
-            case 'container':
-                description = 'Standard shipping container transport'
-                break
-            case 'van':
-                description = 'Enclosed van for smaller deliveries'
-                break
-            case 'trailer':
-                description = 'Heavy-duty trailer for large loads'
-                break
-            default:
-                description = `${vehicleType} available for delivery`
-        }
-
-        return {
-            id: item._id,
-            name: driver?.vehicleType || 'Truck',
-            description: description,
-            capacity: driver?.vehicleCapacity || 'Various capacities',
-            distance: formatDistance(distanceInMeters),
-            distanceInMeters: distanceInMeters,
-            icon: iconDetails.icon,
-            iconBg: iconDetails.bg,
-            iconColor: iconDetails.color,
-            isBooked: driver?.status !== 'active',
-            driverId: item._id,
-            rating: item.rating || 4.5,
-        }
-    }
+    const { signOut } = useAuth()
 
     const fetchNearbyTrucks = useCallback(async (
         locationCoords: LocationCoords | null,
-        showLoading = true
+        showLoading = true,
+        truckTypeId?: string,
     ) => {
         if (!locationCoords) {
             setError('Location not available. Please enable location services.')
@@ -180,75 +95,38 @@ export const useNearbyTrucks = () => {
         }
 
         try {
-            if (showLoading) {
-                setIsLoading(true)
-            }
+            if (showLoading) setIsLoading(true)
             setError(null)
 
             const token = await AsyncStorage.getItem('vToken')
-            
-            console.log('Request payload:', {
+            const params: Record<string, string | number> = {
                 lat: locationCoords.latitude,
                 lng: locationCoords.longitude,
-                radius: radius,
-            })
+                radiusKm: radius,
+            }
+            if (truckTypeId) params.truckTypeId = truckTypeId
 
-            const response = await axios.get<NearbyDriverResponse>(
+            const response = await axios.get<{ data: ApiDriver[] }>(
                 `${IPA_BASE}/jobs/nearby-drivers`,
                 {
-                    params: {
-                        lat: locationCoords.latitude,
-                        lng: locationCoords.longitude,
-                        radiusKm: radius / 1000,
-                    },
-                    headers: {
-                        'Authorization': token ? `Bearer ${token}` : '',
-                    },
+                    params,
+                    headers: { Authorization: token ? `Bearer ${token}` : '' },
                     timeout: 15000,
                 }
             )
 
-            console.log('Nearby drivers response:', response.data)
+            const drivers: ApiDriver[] = response.data?.data ?? []
+            const mapped = drivers.map(mapDriverToTruck)
+            mapped.sort((a, b) => (a.distanceInMeters ?? 0) - (b.distanceInMeters ?? 0))
+            setTrucks(mapped)
 
-            if (response.data?.success && response.data?.data) {
-                // Filter only active drivers and map to trucks
-                const mappedTrucks = response.data.data
-                    .filter(item => item.driver?.status === 'active')
-                    .map((item) => {
-                        const distanceInMeters = item.distance || 0
-                        return mapDriverToTruck(item, distanceInMeters)
-                    })
-
-                // Sort by distance (closest first)
-                mappedTrucks.sort((a, b) => (a.distanceInMeters || 0) - (b.distanceInMeters || 0))
-                setTrucks(mappedTrucks)
-
-                if (mappedTrucks.length === 0) {
-                    setError('No active trucks found in your area.')
-                } else {
-                    setError(null)
-                }
-            } else {
-                setError(response.data?.message || 'Failed to load nearby trucks. Please try again.')
-                setTrucks([])
+            if (mapped.length === 0) {
+                setError('No available trucks found in your area.')
             }
         } catch (err: any) {
-            console.error('Error fetching nearby trucks:', err.response?.data || err.message)
-
-            if (err?.response?.status === 401) {
-                await signOut()
-            }
-
-            if (err.code === 'ECONNABORTED') {
-                setError('Request timeout. Please check your internet connection.')
-            } else if (err.response?.status === 404) {
-                setError('No nearby trucks found.')
-            } else if (err.response?.status === 401) {
-                setError('Authentication failed. Please login again.')
-            } else {
-                setError(err.response?.data?.message || 'Failed to load nearby trucks. Please try again.')
-            }
-
+            if (err?.response?.status === 401) await signOut()
+            const msg = err?.response?.data?.message ?? 'Failed to load nearby trucks.'
+            setError(msg)
             setTrucks([])
         } finally {
             setIsLoading(false)

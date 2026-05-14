@@ -38,33 +38,22 @@ const DROPOFF_RADIUS_METERS = 100;
 const LOCATION_UPDATE_INTERVAL_MS = 5000;
 
 type JobApiResponse = {
-    _id: string;
-    jobId: string;
-    vehicleType?: string;
+    id: string;
     status?: string;
-    distance?: number;
-    duration?: number;
-    fare?: number;
-    scheduleDate?: string;
-    scheduleTime?: string;
-    workNotes?: string;
-    pickupLocation?: {
-        type?: string;
-        coordinates?: [number, number];
-        address?: string;
-    };
-    dropLocation?: {
-        type?: string;
-        coordinates?: [number, number];
-        address?: string;
-    };
-    userId?: { fullName?: string; email?: string; phoneNumber?: string };
-    driverId?: { vehicleType?: string; vehicleCapacity?: string; vehicleNumber?: string; hourRate?: number };
-};
-
-const coordsFromApi = (coords?: [number, number]) => {
-    if (!coords) return { latitude: 0, longitude: 0 };
-    return { latitude: coords[1], longitude: coords[0] };
+    distanceKm?: number;
+    estimatedFare?: number;
+    estimatedHours?: number;
+    workNote?: string;
+    scheduledAt?: string;
+    pickupAddress: string;
+    pickupLat: number;
+    pickupLng: number;
+    dropoffAddress: string;
+    dropoffLat: number;
+    dropoffLng: number;
+    truckType?: { name?: string };
+    customer?: { user?: { fullName?: string; mobileNumber?: string | null } };
+    driver?: { numberPlate?: string | null; truckModel?: string | null };
 };
 
 const getDistanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -165,13 +154,13 @@ const HeadingToPickup = () => {
     // ---------- Route building functions ----------
     const buildRoute = async (current: { latitude: number; longitude: number }, jobData: JobApiResponse) => {
         if (isUpdatingRouteRef.current) return;
-        if (!jobData?.pickupLocation?.coordinates) return;
+        if (!jobData?.pickupLat || !jobData?.pickupLng) return;
         isUpdatingRouteRef.current = true;
         try {
-            const pickup = coordsFromApi(jobData.pickupLocation.coordinates);
+            const pickup = { latitude: jobData.pickupLat, longitude: jobData.pickupLng };
             await getRouteToPickup(
                 { id: 'current', title: 'Current Location', address: 'Your Location', ...current },
-                { id: 'pickup', title: 'Pickup', address: jobData.pickupLocation.address || '', ...pickup }
+                { id: 'pickup', title: 'Pickup', address: jobData.pickupAddress, ...pickup }
             );
             const dist = getDistanceMeters(current.latitude, current.longitude, pickup.latitude, pickup.longitude);
             setDistanceToPickup(dist);
@@ -189,11 +178,11 @@ const HeadingToPickup = () => {
     };
 
     const buildRouteToDropoff = async (current: { latitude: number; longitude: number }) => {
-        if (!data?.dropLocation?.coordinates) return;
-        const drop = coordsFromApi(data.dropLocation.coordinates);
+        if (!data?.dropoffLat || !data?.dropoffLng) return;
+        const drop = { latitude: data.dropoffLat, longitude: data.dropoffLng };
         await getRouteToDropoff(
             { id: 'current', title: 'Current Location', address: 'Your Location', ...current },
-            { id: 'dropoff', title: 'Dropoff', address: data.dropLocation.address || '', ...drop }
+            { id: 'dropoff', title: 'Dropoff', address: data.dropoffAddress, ...drop }
         );
         const dist = getDistanceMeters(current.latitude, current.longitude, drop.latitude, drop.longitude);
         setDistanceToDropoff(dist);
@@ -256,7 +245,7 @@ const HeadingToPickup = () => {
             await driverSocketService.connect();
 
             const loc = await getCurrentLocation();
-            if (loc && job?.pickupLocation?.coordinates) {
+            if (loc && job?.pickupLat && job?.pickupLng) {
                 setCurrentCoords(loc);
                 await buildRoute(loc, job);
             }
@@ -264,12 +253,11 @@ const HeadingToPickup = () => {
             startPeriodicLocationUpdates();
 
             setTimeout(() => {
-                if (mapRef.current && job?.pickupLocation?.coordinates) {
-                    const pickup = coordsFromApi(job.pickupLocation.coordinates);
-                    mapRef.current.fitToCoordinates([pickup], {
-                        edgePadding: { top: 120, right: 60, bottom: 300, left: 60 },
-                        animated: true,
-                    });
+                if (mapRef.current && job?.pickupLat && job?.pickupLng) {
+                    mapRef.current.fitToCoordinates(
+                        [{ latitude: job.pickupLat, longitude: job.pickupLng }],
+                        { edgePadding: { top: 120, right: 60, bottom: 300, left: 60 }, animated: true }
+                    );
                 }
             }, 800);
         } catch (err: any) {
@@ -358,9 +346,12 @@ const HeadingToPickup = () => {
         }
         setIsActionLoading(true);
         try {
-            await advanceJobStatus('complete ride');
+            // LOADED → IN_TRANSIT
+            await advanceJobStatus('start transit');
+            // IN_TRANSIT → DELIVERED
+            await advanceJobStatus('complete delivery');
             setRidePhase('completed');
-            toast.show({ message: 'Job completed!', type: 'success', style: 'top' });
+            toast.show({ message: 'Job delivered successfully!', type: 'success', style: 'top' });
             navigation.navigate('DriverJobsComplete', { jobId });
         } catch (err: any) {
             toast.show({ message: err.message || 'Failed to complete ride', type: 'error', style: 'top' });
@@ -369,8 +360,8 @@ const HeadingToPickup = () => {
         }
     };
 
-    const pickupCoords = data?.pickupLocation?.coordinates ? coordsFromApi(data.pickupLocation.coordinates) : null;
-    const dropCoords = data?.dropLocation?.coordinates ? coordsFromApi(data.dropLocation.coordinates) : null;
+    const pickupCoords = data?.pickupLat && data?.pickupLng ? { latitude: data.pickupLat, longitude: data.pickupLng } : null;
+    const dropCoords = data?.dropoffLat && data?.dropoffLng ? { latitude: data.dropoffLat, longitude: data.dropoffLng } : null;
 
     const getArrivalTime = () => {
         if (ridePhase === 'heading_to_pickup' && eta) {
@@ -450,8 +441,8 @@ const HeadingToPickup = () => {
                         showsUserLocation={false}
                         showsMyLocationButton={false}
                         initialRegion={{
-                            latitude: pickupCoords?.latitude || 23.8103,
-                            longitude: pickupCoords?.longitude || 90.4125,
+                            latitude: data?.pickupLat || 23.8103,
+                            longitude: data?.pickupLng || 90.4125,
                             latitudeDelta: 0.04,
                             longitudeDelta: 0.04,
                         }}
@@ -583,7 +574,7 @@ const HeadingToPickup = () => {
                             </View>
                             <View className="flex-1">
                                 <Text className="text-xs font-bold text-gray-400 mb-1">PICKUP LOCATION</Text>
-                                <Text className="text-sm font-semibold text-gray-900">{data?.pickupLocation?.address || '—'}</Text>
+                                <Text className="text-sm font-semibold text-gray-900">{data?.pickupAddress || '—'}</Text>
                             </View>
                         </View>
                         {dropCoords && (
@@ -593,7 +584,7 @@ const HeadingToPickup = () => {
                                 </View>
                                 <View className="flex-1">
                                     <Text className="text-xs font-bold text-gray-400 mb-1">DROPOFF LOCATION</Text>
-                                    <Text className="text-sm font-semibold text-gray-900">{data?.dropLocation?.address || '—'}</Text>
+                                    <Text className="text-sm font-semibold text-gray-900">{data?.dropoffAddress || '—'}</Text>
                                 </View>
                             </View>
                         )}
@@ -602,17 +593,19 @@ const HeadingToPickup = () => {
                     <View className="flex-row gap-3 mb-5">
                         <View className="flex-1 bg-white border border-gray-100 rounded-2xl p-3" style={{ elevation: 1 }}>
                             <Text className="text-xs text-gray-400 mb-1">VEHICLE</Text>
-                            <Text className="text-sm font-bold text-gray-900">{data?.driverId?.vehicleType || data?.vehicleType || '—'}</Text>
-                            <Text className="text-xs text-gray-500 mt-0.5">Plate: {data?.driverId?.vehicleNumber || '—'}</Text>
+                            <Text className="text-sm font-bold text-gray-900">{data?.truckType?.name || '—'}</Text>
+                            <Text className="text-xs text-gray-500 mt-0.5">Plate: {data?.driver?.numberPlate || '—'}</Text>
                         </View>
                         <View className="flex-1 bg-white border border-gray-100 rounded-2xl p-3 flex-row items-center justify-between" style={{ elevation: 1 }}>
                             <View>
                                 <Text className="text-xs text-gray-400 mb-1">CUSTOMER</Text>
-                                <Text className="text-sm font-bold text-gray-900">{data?.userId?.fullName || '—'}</Text>
+                                <Text className="text-sm font-bold text-gray-900">{data?.customer?.user?.fullName || '—'}</Text>
                             </View>
-                            <Pressable onPress={() => Linking.openURL(`tel:${data?.userId?.phoneNumber || ''}`)} className="w-10 h-10 rounded-full bg-green-50 items-center justify-center">
-                                <Ionicons name="call-outline" size={20} color="#10B981" />
-                            </Pressable>
+                            {data?.customer?.user?.mobileNumber ? (
+                                <Pressable onPress={() => Linking.openURL(`tel:${data.customer!.user!.mobileNumber}`)} className="w-10 h-10 rounded-full bg-green-50 items-center justify-center">
+                                    <Ionicons name="call-outline" size={20} color="#10B981" />
+                                </Pressable>
+                            ) : null}
                         </View>
                     </View>
 

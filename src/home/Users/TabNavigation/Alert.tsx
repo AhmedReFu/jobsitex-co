@@ -1,148 +1,161 @@
+import { IPA_BASE } from '@env'
 import { Ionicons } from '@expo/vector-icons'
-import React from 'react'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import axios from 'axios'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
-    SectionList,
+    ActivityIndicator,
+    FlatList,
+    RefreshControl,
     Text,
     TouchableOpacity,
-    View
+    View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { socketService } from '../services/socket.service'
 
-interface Notification {
+type ApiNotification = {
     id: string
+    type: string
     title: string
     message: string
-    icon: string
-    iconBg: string
     isRead: boolean
+    createdAt: string
+    data?: Record<string, unknown>
+}
+
+const TYPE_ICON: Record<string, { icon: string; color: string }> = {
+    JOB_OFFER: { icon: 'briefcase', color: '#26A201' },
+    JOB_ACCEPTED: { icon: 'checkmark-circle', color: '#22C55E' },
+    JOB_CANCELLED: { icon: 'close-circle', color: '#EF4444' },
+    PAYMENT: { icon: 'cash', color: '#3B82F6' },
+    SYSTEM: { icon: 'information-circle', color: '#8B5CF6' },
+    DEFAULT: { icon: 'notifications', color: '#9CA3AF' },
+}
+
+const formatTime = (iso: string) => {
+    const d = new Date(iso)
+    const now = new Date()
+    const diffMin = Math.floor((now.getTime() - d.getTime()) / 60000)
+    if (diffMin < 1) return 'Just now'
+    if (diffMin < 60) return `${diffMin}m ago`
+    const diffHr = Math.floor(diffMin / 60)
+    if (diffHr < 24) return `${diffHr}h ago`
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 const Alert = () => {
-    const notificationSections = [
-        {
-            title: 'Today',
-            data: [
-                {
-                    id: '1',
-                    title: 'New Category Services!',
-                    message: 'Now the plumbing service is available',
-                    icon: 'grid',
-                    iconBg: '#4CAF50',
-                    isRead: false,
-                },
-                {
-                    id: '2',
-                    title: 'New Category Services!',
-                    message: 'Now the plumbing service is available',
-                    icon: 'grid',
-                    iconBg: '#4CAF50',
-                    isRead: false,
-                },
-                {
-                    id: '3',
-                    title: 'New Category Services!',
-                    message: 'Now the plumbing service is available',
-                    icon: 'grid',
-                    iconBg: '#4CAF50',
-                    isRead: false,
-                },
-            ],
-        },
-        {
-            title: 'Yesterday',
-            data: [
-                {
-                    id: '4',
-                    title: 'Scheduled Maintenance',
-                    message: 'The booking system will be offline for 30 minutes tonight at 2 AM EST for critical...',
-                    icon: 'calendar',
-                    iconBg: '#A5D6A7',
-                    isRead: true,
-                },
-            ],
-        },
-        {
-            title: 'December 22, 2024',
-            data: [
-                {
-                    id: '5',
-                    title: 'New Category Services!',
-                    message: 'Now the plumbing service is available',
-                    icon: 'grid',
-                    iconBg: '#C8E6C9',
-                    isRead: true,
-                },
-            ],
-        },
-    ]
+    const [notifications, setNotifications] = useState<ApiNotification[]>([])
+    const [loading, setLoading] = useState(true)
+    const [refreshing, setRefreshing] = useState(false)
 
-    const handleNotificationPress = (notification: Notification) => {
-        console.log('Notification pressed:', notification)
+    const load = useCallback(async (isRefresh = false) => {
+        try {
+            if (isRefresh) setRefreshing(true)
+            const token = await AsyncStorage.getItem('vToken')
+            const res = await axios.get(`${IPA_BASE}/user/notifications`, {
+                headers: { Authorization: `Bearer ${token}` },
+                params: { limit: 50 },
+                timeout: 10000,
+            })
+            setNotifications(res.data?.data ?? [])
+        } catch (err) {
+            console.error('Alert load error:', err)
+        } finally {
+            setLoading(false)
+            setRefreshing(false)
+        }
+    }, [])
+
+    useEffect(() => {
+        load()
+
+        const handleNotification = (data: ApiNotification) => {
+            setNotifications((prev) => [data, ...prev])
+        }
+        socketService.connect().then(() => {
+            socketService.onNotification(handleNotification)
+        })
+        return () => {
+            socketService.offNotification(handleNotification)
+        }
+    }, [])
+
+    const markRead = async (id: string) => {
+        try {
+            const token = await AsyncStorage.getItem('vToken')
+            await axios.patch(`${IPA_BASE}/user/notifications/${id}/read`, {}, {
+                headers: { Authorization: `Bearer ${token}` },
+                timeout: 5000,
+            })
+            setNotifications((prev) =>
+                prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+            )
+        } catch {
+            // non-critical
+        }
     }
 
-    const renderNotification = ({ item }: { item: Notification }) => (
-        <TouchableOpacity
-            onPress={() => handleNotificationPress(item)}
-            className='bg-white rounded-2xl p-5 mb-3 flex-row items-start'
-            activeOpacity={0.7}
-            style={{
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.05,
-                shadowRadius: 4,
-                elevation: 2,
-            }}
-        >
-            {/* Icon Container */}
-            <View
-                className='w-16 h-16 rounded-full items-center justify-center mr-4'
-                style={{ backgroundColor: item.iconBg + '30' }}
+    const renderItem = ({ item }: { item: ApiNotification }) => {
+        const iconCfg = TYPE_ICON[item.type] ?? TYPE_ICON.DEFAULT
+        return (
+            <TouchableOpacity
+                onPress={() => !item.isRead && markRead(item.id)}
+                className={`rounded-2xl p-4 mb-3 flex-row items-start ${item.isRead ? 'bg-white' : 'bg-green-50'}`}
+                activeOpacity={0.7}
+                style={{ elevation: 2 }}
             >
-                <Ionicons name={item.icon as any} size={24} color={item.iconBg} />
-            </View>
+                <View
+                    className='w-12 h-12 rounded-full items-center justify-center mr-4'
+                    style={{ backgroundColor: iconCfg.color + '20' }}
+                >
+                    <Ionicons name={iconCfg.icon as any} size={22} color={iconCfg.color} />
+                </View>
 
-            {/* Content */}
-            <View className='flex-1'>
-                <Text className='text-xl font-bold text-gray-dark mb-1'>
-                    {item.title}
-                </Text>
-                <Text className='text-lg text-gray-medium ' numberOfLines={2}>
-                    {item.message}
-                </Text>
-            </View>
+                <View className='flex-1'>
+                    <View className='flex-row items-start justify-between mb-1'>
+                        <Text className='text-base font-bold text-gray-900 flex-1 mr-2'>{item.title}</Text>
+                        <Text className='text-xs text-gray-400'>{formatTime(item.createdAt)}</Text>
+                    </View>
+                    <Text className='text-sm text-gray-600 leading-5' numberOfLines={2}>{item.message}</Text>
+                </View>
 
-            {/* Unread indicator */}
-            {!item.isRead && (
-                <View className='w-2 h-2 rounded-full bg-primary ml-2 mt-2' />
-            )}
-        </TouchableOpacity>
-    )
+                {!item.isRead && (
+                    <View className='w-2.5 h-2.5 rounded-full bg-green-500 ml-2 mt-1' />
+                )}
+            </TouchableOpacity>
+        )
+    }
 
-    const renderSectionHeader = ({ section }: any) => (
-        <Text className='text-xl font-bold text-gray-dark mb-3 mt-2'>
-            {section.title}
-        </Text>
-    )
+    if (loading) {
+        return (
+            <SafeAreaView className='flex-1 bg-gray-50 items-center justify-center' edges={['top']}>
+                <ActivityIndicator color='#43B047' size='large' />
+            </SafeAreaView>
+        )
+    }
 
     return (
         <SafeAreaView className='flex-1 bg-gray-50' edges={['top']}>
-            {/* Header */}
-            <View className='flex-row items-center px-6 py-4 bg-gray-50'>
-                {/* <TouchableOpacity className='mr-4' activeOpacity={0.7}>
-                    <Ionicons name="arrow-back" size={24} color="#1C1C1C" />
-                </TouchableOpacity> */}
-                <Text className='text-2xl font-bold text-gray-dark'>Alert</Text>
+            <View className='px-5 py-4'>
+                <Text className='text-2xl font-bold text-gray-900'>Alerts</Text>
             </View>
 
-            {/* Notifications List */}
-            <SectionList
-                sections={notificationSections}
+            <FlatList
+                data={notifications}
                 keyExtractor={(item) => item.id}
-                renderItem={renderNotification}
-                renderSectionHeader={renderSectionHeader}
-                contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 100 }}
+                renderItem={renderItem}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100 }}
                 showsVerticalScrollIndicator={false}
-                stickySectionHeadersEnabled={false}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor='#43B047' />
+                }
+                ListEmptyComponent={
+                    <View className='items-center py-16'>
+                        <Ionicons name='notifications-off-outline' size={48} color='#D1D5DB' />
+                        <Text className='text-gray-400 mt-3 text-base'>No notifications yet</Text>
+                    </View>
+                }
             />
         </SafeAreaView>
     )

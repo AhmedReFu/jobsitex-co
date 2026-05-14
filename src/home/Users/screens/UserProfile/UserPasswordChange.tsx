@@ -11,10 +11,12 @@ import {
     View
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useUser } from '../../../../Auth/UserContext'
 import { AuthStackParamList } from '../../../../Navigation/type'
 
 const UserPasswordChange = () => {
     const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
+    const { changePassword } = useUser()
     const [oldPassword, setOldPassword] = useState('')
     const [newPassword, setNewPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
@@ -23,58 +25,39 @@ const UserPasswordChange = () => {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false)
     const [loading, setLoading] = useState(false)
 
-    const handleBack = () => {
-        navigation.goBack()
-    }
-
     const handleSaveChanges = async () => {
-        // Validation
         if (!oldPassword.trim()) {
-            Alert.alert('Error', 'Please enter your old password')
+            Alert.alert('Error', 'Please enter your current password')
             return
         }
-
         if (!newPassword.trim()) {
             Alert.alert('Error', 'Please enter your new password')
             return
         }
-
-        if (newPassword.length < 6) {
-            Alert.alert('Error', 'Password must be at least 6 characters')
+        if (newPassword.length < 8) {
+            Alert.alert('Error', 'Password must be at least 8 characters')
             return
         }
-
         if (newPassword !== confirmPassword) {
             Alert.alert('Error', 'New passwords do not match')
             return
         }
-
         if (oldPassword === newPassword) {
-            Alert.alert('Error', 'New password must be different from old password')
+            Alert.alert('Error', 'New password must be different from current password')
             return
         }
 
         setLoading(true)
-
         try {
-            // API call to change password
-            console.log('Changing password...')
-
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1500))
-
-            Alert.alert(
-                'Success',
-                'Password changed successfully',
-                [
-                    {
-                        text: 'OK',
-                        onPress: () => navigation.goBack(),
-                    },
-                ]
-            )
-        } catch (error) {
-            console.error('Error changing password:', error)
+            const success = await changePassword(oldPassword, newPassword)
+            if (success) {
+                Alert.alert('Success', 'Password changed successfully', [
+                    { text: 'OK', onPress: () => navigation.goBack() },
+                ])
+            } else {
+                Alert.alert('Error', 'Failed to change password. Please check your current password.')
+            }
+        } catch {
             Alert.alert('Error', 'Failed to change password. Please try again.')
         } finally {
             setLoading(false)
@@ -86,7 +69,7 @@ const UserPasswordChange = () => {
             <ScrollView showsVerticalScrollIndicator={false}>
                 {/* Header */}
                 <View className='flex-row items-center px-6 py-4'>
-                    <TouchableOpacity onPress={handleBack} activeOpacity={0.7}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
                         <Ionicons name="arrow-back" size={28} color="#1C1C1C" />
                     </TouchableOpacity>
                     <Text className='text-2xl font-bold text-gray-dark ml-4'>
@@ -192,7 +175,10 @@ const UserPasswordChange = () => {
                             Password Requirements:
                         </Text>
                         <Text className='text-sm text-blue-700'>
-                            • At least 6 characters long
+                            • At least 8 characters long
+                        </Text>
+                        <Text className='text-sm text-blue-700'>
+                            • Must contain uppercase, lowercase, and a number
                         </Text>
                         <Text className='text-sm text-blue-700'>
                             • Different from old password
