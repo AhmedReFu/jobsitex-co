@@ -29,9 +29,30 @@ export interface LocationPayload {
 class DriverSocketService {
   private socket: Socket | null = null
   private isConnected = false
+  private subscribedRadius: number | null = null
 
   async connect(): Promise<Socket> {
     if (this.socket && this.isConnected) return this.socket
+
+    // Socket exists but reconnecting — wait for the connect event
+    if (this.socket && !this.isConnected) {
+      return new Promise((resolve) => {
+        const onConnect = () => {
+          cleanup()
+          resolve(this.socket!)
+        }
+        const onTimeout = () => {
+          cleanup()
+          resolve(this.socket!) // resolve anyway; buffered emits will fire when ready
+        }
+        const cleanup = () => {
+          this.socket?.off('connect', onConnect)
+          clearTimeout(timer)
+        }
+        this.socket!.once('connect', onConnect)
+        const timer = setTimeout(onTimeout, 5000)
+      })
+    }
 
     const token = await AsyncStorage.getItem('vToken')
 
@@ -39,35 +60,41 @@ class DriverSocketService {
       transports: ['websocket'],
       auth: { token },
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
     })
 
     this.socket.on('connect', () => {
       this.isConnected = true
+      // Re-subscribe after reconnect if was subscribed
+      if (this.subscribedRadius !== null) {
+        this.socket?.emit('driver:subscribe-jobs', { radius: this.subscribedRadius })
+      }
     })
+
     this.socket.on('disconnect', () => {
       this.isConnected = false
     })
+
     this.socket.on('connect_error', (err) => {
       console.error('Driver socket error:', err.message)
     })
 
-    return this.socket
-  }
-
-  subscribeJobs(radius = 20): Promise<{ event: string; data: { radius: number } }> {
-    return new Promise((resolve, reject) => {
-      if (!this.socket) return reject(new Error('Socket not connected'))
-      this.socket.emit('driver:subscribe-jobs', { radius }, (ack: any) => resolve(ack))
+    return new Promise((resolve) => {
+      this.socket!.once('connect', () => resolve(this.socket!))
+      // Fallback: resolve after 5 s so callers are never blocked
+      setTimeout(() => resolve(this.socket!), 5000)
     })
   }
 
-  unsubscribeJobs(): Promise<{ event: string }> {
-    return new Promise((resolve, reject) => {
-      if (!this.socket) return reject(new Error('Socket not connected'))
-      this.socket.emit('driver:unsubscribe-jobs', (ack: any) => resolve(ack))
-    })
+  subscribeJobs(radius = 20): void {
+    this.subscribedRadius = radius
+    this.socket?.emit('driver:subscribe-jobs', { radius })
+  }
+
+  unsubscribeJobs(): void {
+    this.subscribedRadius = null
+    this.socket?.emit('driver:unsubscribe-jobs')
   }
 
   sendLocation(payload: LocationPayload) {
@@ -92,6 +119,7 @@ class DriverSocketService {
   }
 
   disconnect() {
+    this.subscribedRadius = null
     if (this.socket) {
       this.socket.disconnect()
       this.socket = null

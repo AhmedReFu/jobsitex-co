@@ -42,6 +42,7 @@ type Job = {
     id: string
     jobId: string
     status: 'active' | 'completed'
+    rawStatus: string
     vehicleType: string
     pickupAddress: string
     dropAddress: string
@@ -62,6 +63,7 @@ const mapJob = (item: ApiJob): Job => {
         id: item.id,
         jobId: item.id.slice(-8).toUpperCase(),
         status: isActive ? 'active' : 'completed',
+        rawStatus: item.status,
         vehicleType: item.truckType?.name ?? 'Truck',
         pickupAddress: item.pickupAddress,
         dropAddress: item.dropoffAddress,
@@ -79,7 +81,7 @@ const mapJob = (item: ApiJob): Job => {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const formatDistance = (d: number) => `${d.toFixed(1)} mi`
+const formatDistance = (d: number) => `${d.toFixed(1)} km`
 
 const formatDuration = (mins: number) => {
     const h = Math.floor(mins / 60)
@@ -214,7 +216,7 @@ const JobCard = ({ job, onPress }: { job: Job; onPress: () => void }) => {
                         <View style={styles.scheduleRow}>
                             <Ionicons name='calendar-outline' size={14} color='#6B7280' />
                             <Text style={styles.scheduleText}>
-                                {formatDate(job.scheduleDate, job.scheduleTime)}
+                                {formatDate(job.scheduleDate)}
                             </Text>
                         </View>
                     )}
@@ -249,7 +251,9 @@ const JobCard = ({ job, onPress }: { job: Job; onPress: () => void }) => {
             {/* Action Button — active only */}
             {isActive && (
                 <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.btnFull}>
-                    <Text style={styles.btnText}>START JOB</Text>
+                    <Text style={styles.btnText}>
+                        {job.rawStatus === 'BOOKED' ? 'START JOB' : 'CONTINUE JOB'}
+                    </Text>
                 </TouchableOpacity>
             )}
         </TouchableOpacity>
@@ -329,9 +333,14 @@ const DriverJobs=()=> {
 
     const handlePress = (job: Job) => {
         if (job.status === 'active') {
-            navigation.navigate('JobAssigned', { jobId: job.id })
+            if (job.rawStatus === 'BOOKED') {
+                navigation.navigate('JobAssigned', { jobId: job.id })
+            } else {
+                // ON_WAY / ARRIVED / LOADED / IN_TRANSIT — driver is on the road
+                navigation.navigate('HeadingToPickup', { jobId: job.id })
+            }
         } else {
-            navigation.navigate('DriverJobsComplete', { jobId: job.id })
+            navigation.navigate('DriverJobsDetails', { jobId: job.id })
         }
     }
 

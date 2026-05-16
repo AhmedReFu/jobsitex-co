@@ -91,14 +91,5 @@ export type AuthStackParamList = {
   VehicleDetails: undefined;
   Notification: undefined;
   PrivacyPolicy: undefined;
-  OnBoardingFrist: {
-    onBoardData: Array<{
-      id: string;
-      image: any;
-      title: string;
-      description: string;
-    }>;
-    onBoardType: "User" | "Driver";
-  };
-  RoleSelect: undefined;
+  OnBoardingFrist: undefined;
 };

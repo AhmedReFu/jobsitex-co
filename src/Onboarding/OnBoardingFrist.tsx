@@ -1,4 +1,4 @@
-import { NavigationProp, RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { NavigationProp, useNavigation } from '@react-navigation/native';
 import React, { useRef, useState } from 'react';
 import {
   Dimensions,
@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthStackParamList } from '../Navigation/type';
 import { useAuth } from '../Auth/AuthContext';
+import { Images } from '../constants';
 
 const { width } = Dimensions.get('window');
 
@@ -21,19 +22,36 @@ interface OnboardingItem {
   description: string;
 }
 
+const onboardingSlides: OnboardingItem[] = [
+  {
+    id: '1',
+    image: Images.UserOnBoardOne,
+    title: 'Fast & Reliable Transport',
+    description: 'Book the right truck for your load in\nseconds.',
+  },
+  {
+    id: '2',
+    image: Images.UserOnBoardSecond,
+    title: 'Real-Time Tracking',
+    description: 'Monitor your shipment from pickup to\ndelivery with live updates.',
+  },
+  {
+    id: '3',
+    image: Images.UserOnBoardThird,
+    title: 'Safe, Reliable, Trusted Drivers',
+    description: 'Work with professional drivers and ensure\non-time delivery',
+  },
+];
+
 const OnBoardingFrist = () => {
   const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
-  const route = useRoute<RouteProp<AuthStackParamList, 'OnBoardingFrist'>>();
   const { setHasCompletedOnboarding } = useAuth();
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList<OnboardingItem>>(null);
 
-  const onBoardData = route.params?.onBoardData || [];
-  const onBoardType = route.params?.onBoardType || 'USER';
-
   const handleNext = async () => {
-    if (currentIndex < onBoardData.length - 1) {
+    if (currentIndex < onboardingSlides.length - 1) {
       const nextIndex = currentIndex + 1;
       flatListRef.current?.scrollToOffset({
         offset: nextIndex * width,
@@ -41,22 +59,14 @@ const OnBoardingFrist = () => {
       });
       setCurrentIndex(nextIndex);
     } else {
-      // Mark onboarding as completed
       await setHasCompletedOnboarding(true);
-
-      // Navigate to sign in with role
-      (navigation as any).replace("SignIn", {
-        type: onBoardType
-      });
+      (navigation as any).replace("SignIn");
     }
   };
 
   const handleSkip = async () => {
-    // Mark onboarding as completed even if skipped
     await setHasCompletedOnboarding(true);
-    (navigation as any).replace("SignIn", {
-      type: onBoardType
-    });
+    (navigation as any).replace("SignIn");
   };
 
   const onScroll = (event: any) => {
@@ -90,7 +100,7 @@ const OnBoardingFrist = () => {
 
   return (
     <SafeAreaView className='flex-1 bg-white'>
-      {currentIndex !== onBoardData.length - 1 && (
+      {currentIndex !== onboardingSlides.length - 1 && (
         <TouchableOpacity
           onPress={handleSkip}
           className='absolute top-16 right-6 z-10'
@@ -102,7 +112,7 @@ const OnBoardingFrist = () => {
 
       <FlatList
         ref={flatListRef}
-        data={onBoardData}
+        data={onboardingSlides}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         horizontal
@@ -114,7 +124,7 @@ const OnBoardingFrist = () => {
 
       <View className='px-6 pb-8'>
         <View className='flex-row justify-center mb-8'>
-          {onBoardData.map((_: any, index: number) => (
+          {onboardingSlides.map((_: any, index: number) => (
             <View
               key={index}
               className={`h-2 rounded-full mx-1 ${index === currentIndex
@@ -131,7 +141,7 @@ const OnBoardingFrist = () => {
           activeOpacity={0.8}
         >
           <Text className='text-white text-center text-lg font-bold'>
-            {currentIndex === onBoardData.length - 1 ? 'GET STARTED' : 'NEXT'}
+            {currentIndex === onboardingSlides.length - 1 ? 'GET STARTED' : 'NEXT'}
           </Text>
         </TouchableOpacity>
       </View>

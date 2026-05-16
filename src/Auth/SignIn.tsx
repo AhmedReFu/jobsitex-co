@@ -1,7 +1,7 @@
 import { IPA_BASE, LOGIN } from '@env'
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { NavigationProp, useNavigation, useRoute } from '@react-navigation/native'
+import { NavigationProp, useNavigation } from '@react-navigation/native'
 import axios from 'axios'
 import React, { useState } from 'react'
 import { useAuth } from '../Auth/AuthContext'
@@ -38,9 +38,6 @@ const SignIn = () => {
     const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
     const { signIn } = useAuth()
     const toast = useToast()
-    const route = useRoute<any>()
-    const type = route.params?.type
-
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
@@ -194,7 +191,7 @@ const SignIn = () => {
     }
 
     const handleSignUp = () => {
-        (navigation as any).replace('SignUp', { type })
+        (navigation as any).replace('SignUp')
     }
 
     const handleGoogleSignIn = () => {

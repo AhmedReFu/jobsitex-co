@@ -25,13 +25,13 @@ const SplashScreen = () => {
     useEffect(() => {
         const t = setTimeout(() => {
             if (user) {
-                if (isFirstLaunch && !hasCompletedOnboarding) {
-                    (navigation as any).replace("RoleSelect");
-                } else if (user.role === 'DRIVER') {
+                if (user.role === 'DRIVER') {
                     (navigation as any).replace("DriverMainTabs");
                 } else {
                     (navigation as any).replace("UserMainTabs");
                 }
+            } else if (isFirstLaunch && !hasCompletedOnboarding) {
+                (navigation as any).replace("OnBoardingFrist");
             } else {
                 (navigation as any).replace("SignIn");
             }

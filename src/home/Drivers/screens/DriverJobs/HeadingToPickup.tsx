@@ -242,6 +242,17 @@ const HeadingToPickup = () => {
             if (!job) throw new Error('Invalid job data');
             setData(job);
 
+            // Restore phase from API status so re-opening app mid-job works correctly
+            const statusToPhase: Record<string, RidePhase> = {
+                ON_WAY: 'heading_to_pickup',
+                ARRIVED: 'arrived_at_pickup',
+                LOADED: 'ride_started',
+                IN_TRANSIT: 'heading_to_dropoff',
+            };
+            if (job.status && statusToPhase[job.status]) {
+                setRidePhase(statusToPhase[job.status]);
+            }
+
             await driverSocketService.connect();
 
             const loc = await getCurrentLocation();
@@ -321,7 +332,7 @@ const HeadingToPickup = () => {
                     try {
                         await advanceJobStatus('start ride');
                         setRidePhase('ride_started');
-                        if (currentCoords && data?.dropLocation?.coordinates) {
+                        if (currentCoords) {
                             await buildRouteToDropoff(currentCoords);
                         }
                         toast.show({ message: 'Ride started! Heading to dropoff.', type: 'success', style: 'top' });
@@ -379,11 +390,18 @@ const HeadingToPickup = () => {
 
     const getDistanceDisplay = () => {
         if (ridePhase === 'heading_to_pickup' || ridePhase === 'arrived_at_pickup') {
-            if (distanceToPickup === null) return routeToPickup ? `${routeToPickup.distance.toFixed(1)} km` : '-- km';
+            if (distanceToPickup === null) {
+                if (routeToPickup) return `${routeToPickup.distance.toFixed(1)} km`;
+                return '-- km';
+            }
             if (distanceToPickup < 1000) return `${Math.round(distanceToPickup)} m`;
             return `${(distanceToPickup / 1000).toFixed(1)} km`;
         } else {
-            if (distanceToDropoff === null) return routeToDropoff ? `${routeToDropoff.distance.toFixed(1)} km` : '-- km';
+            if (distanceToDropoff === null) {
+                if (routeToDropoff) return `${routeToDropoff.distance.toFixed(1)} km`;
+                if (data?.distanceKm) return `${data.distanceKm.toFixed(1)} km`;
+                return '-- km';
+            }
             if (distanceToDropoff < 1000) return `${Math.round(distanceToDropoff)} m`;
             return `${(distanceToDropoff / 1000).toFixed(1)} km`;
         }

@@ -162,7 +162,7 @@ const DriverHome = () => {
     const [isLoadingLocation, setIsLoadingLocation] = useState(true)
     const [showLocationModal, setShowLocationModal] = useState(false)
     const [locationCoords, setLocationCoords] = useState<{ latitude: number; longitude: number } | null>(null)
-    const [selectedRadius, setSelectedRadius] = useState<number>(0)
+    const [selectedRadius, setSelectedRadius] = useState<number>(20)
     const [jobs, setJobs] = useState<JobCardData[]>([])
     const [isStartingJob, setIsStartingJob] = useState(false)
 
@@ -460,11 +460,10 @@ const DriverHome = () => {
             try {
                 await driverSocketService.connect()
                 if (!mounted) return
-
                 if (isOnline) {
-                    await driverSocketService.subscribeJobs(selectedRadius || 20)
+                    driverSocketService.subscribeJobs(selectedRadius)
                 } else {
-                    driverSocketService.unsubscribeJobs().catch(() => {})
+                    driverSocketService.unsubscribeJobs()
                 }
             } catch {
                 // socket connection failed; will retry on next focus

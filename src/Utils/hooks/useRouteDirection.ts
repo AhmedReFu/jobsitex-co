@@ -1,7 +1,7 @@
-// useRouteDirection.ts - Updated to return the route data
-import { useState, useCallback } from 'react'
-import axios from 'axios'
 import polyline from '@mapbox/polyline'
+import { GOOGLE_MAPS_API_KEY } from '@env'
+import axios from 'axios'
+import { useState, useCallback } from 'react'
 import { LocationData, RouteData } from '../../home/Users/Components/SearchLocation/type'
 
 export const useRouteDirection = () => {
@@ -25,8 +25,8 @@ export const useRouteDirection = () => {
           params: {
             origin: `${origin.latitude},${origin.longitude}`,
             destination: `${destination.latitude},${destination.longitude}`,
-            key: 'AIzaSyCB3G-ob1C6JEUF_wotuQY1RMPKIbRkPIw'
-          }
+            key: GOOGLE_MAPS_API_KEY,
+          },
         }
       )
 
@@ -34,27 +34,23 @@ export const useRouteDirection = () => {
         const route = response.data.routes[0]
         const encoded = route.overview_polyline.points
         const decoded = polyline.decode(encoded)
-        const points = decoded.map(([lat, lng]) => ({
-          latitude: lat,
-          longitude: lng
-        }))
+        const points = decoded.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
 
-        const newRouteData: RouteData = {
+        const result: RouteData = {
           points,
           distance: route.legs[0].distance.value / 1000,
           duration: route.legs[0].duration.value / 60,
-          polyline: encoded
+          polyline: encoded,
         }
-        
-        setRouteData(newRouteData)
-        return newRouteData
+        setRouteData(result)
+        return result
       } else {
         setError('No route found between these locations')
         return null
       }
     } catch (err: any) {
-      console.error('Error getting route:', err)
-      setError(err.response?.data?.error_message || 'Failed to get route')
+      console.error('Route fetch error:', err?.response?.data || err?.message)
+      setError(err?.response?.data?.error_message || 'Failed to get route')
       return null
     } finally {
       setIsLoading(false)
@@ -66,11 +62,5 @@ export const useRouteDirection = () => {
     setError(null)
   }, [])
 
-  return {
-    routeData,
-    isLoading,
-    error,
-    getRoute,
-    clearRoute
-  }
+  return { routeData, isLoading, error, getRoute, clearRoute }
 }

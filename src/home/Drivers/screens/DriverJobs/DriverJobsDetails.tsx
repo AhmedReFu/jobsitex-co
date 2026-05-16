@@ -1,244 +1,279 @@
-import { Ionicons, MaterialIcons } from '@expo/vector-icons'
-import { useNavigation } from '@react-navigation/native'
-import React, { useState } from 'react'
-import { ImageBackground, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { IPA_BASE } from '@env'
+import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { useNavigation, useRoute } from '@react-navigation/native'
+import axios from 'axios'
+import React, { useEffect, useState } from 'react'
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-interface StatusPoint {
+type JobDetail = {
     id: string
-    title: string
-    time: string
-    description: string
-    completed: boolean
-    isCurrentActive?: boolean
-    timeColor?: string
+    status: string
+    distanceKm: number | null
+    estimatedFare: number | null
+    estimatedHours: number | null
+    pickupAddress: string
+    dropoffAddress: string
+    workNote: string | null
+    scheduledAt: string | null
+    createdAt: string
+    updatedAt: string
+    truckType: { name: string } | null
+    driver: { numberPlate: string | null; truckModel: string | null } | null
+    customer: { user: { fullName: string } } | null
 }
 
-const DriverJobsDetails = ({ route }: any) => {
+const STATUS_ORDER = ['BOOKED', 'ON_WAY', 'ARRIVED', 'LOADED', 'IN_TRANSIT', 'DELIVERED']
+
+const STATUS_LABEL: Record<string, string> = {
+    BOOKED: 'Booked',
+    ON_WAY: 'Driver On The Way',
+    ARRIVED: 'Driver Arrived',
+    LOADED: 'Loaded',
+    IN_TRANSIT: 'In Transit',
+    DELIVERED: 'Delivered',
+}
+
+const STATUS_DESCRIPTION: Record<string, string> = {
+    BOOKED: 'Job confirmed and driver assigned.',
+    ON_WAY: 'Driver is heading to pickup location.',
+    ARRIVED: 'Driver arrived at pickup location.',
+    LOADED: 'Goods loaded onto the truck.',
+    IN_TRANSIT: 'Shipment on the way to dropoff.',
+    DELIVERED: 'Delivered successfully.',
+}
+
+const DriverJobsDetails = () => {
     const navigation = useNavigation()
-    const [jobDetails] = useState({
-        jobId: '#JOB-1024',
-        status: 'On time',
-        vehicle: {
-            model: 'Volvo VNL 860',
-            licensePlate: 'CA 55829',
-            trailerType: '53\' Dry Van',
-            weight: '42,000 lbs',
-        },
-        route: {
-            pickupLocation: 'New York, NY',
-            dropoffLocation: '2045 Lodgeville Road, Egan...',
-        },
-    })
+    const route = useRoute<any>()
+    const jobId: string = route.params?.jobId ?? ''
 
-    const [statusPoints] = useState<StatusPoint[]>([
-        {
-            id: '1',
-            title: 'Booked',
-            time: 'Oct 12 6:00 AM',
-            description: 'Order confirmed details verified.',
-            completed: true,
-        },
-        {
-            id: '2',
-            title: 'Driver Arrived',
-            time: 'Oct 12 7:15 AM',
-            description: 'Order confirmed details verified.',
-            completed: true,
-        },
-        {
-            id: '3',
-            title: 'Loaded',
-            time: 'Oct 12, 8:00 AM',
-            description: 'Order confirmed details verified.',
-            completed: true,
-        },
-        {
-            id: '4',
-            title: 'In Transit',
-            time: 'Est 2:30 PM',
-            description: 'Currently on 1-55 South heading towards St. Louis.',
-            completed: false,
-            isCurrentActive: true,
-            timeColor: '#F59E0B',
-        },
-        {
-            id: '5',
-            title: 'Delivered',
-            time: '',
-            description: 'Pending arrival.',
-            completed: false,
-            timeColor: '#F59E0B',
-        },
-    ])
+    const [job, setJob] = useState<JobDetail | null>(null)
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
 
-    const handleViewMap = () => {
-        // map view not yet implemented
+    useEffect(() => {
+        const fetchJob = async () => {
+            try {
+                const token = await AsyncStorage.getItem('vToken')
+                const res = await axios.get(`${IPA_BASE}/jobs/${jobId}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    timeout: 15000,
+                })
+                setJob(res.data?.data ?? null)
+            } catch (err: any) {
+                setError(err?.response?.data?.message || 'Failed to load job details')
+            } finally {
+                setLoading(false)
+            }
+        }
+        if (jobId) fetchJob()
+    }, [jobId])
+
+    if (loading) {
+        return (
+            <SafeAreaView className='flex-1 bg-gray-50 items-center justify-center' edges={['top']}>
+                <ActivityIndicator color='#43B047' size='large' />
+            </SafeAreaView>
+        )
     }
-    const handleBack = () => {
-        navigation.goBack()
+
+    if (error || !job) {
+        return (
+            <SafeAreaView className='flex-1 bg-gray-50 items-center justify-center px-6' edges={['top']}>
+                <MaterialCommunityIcons name='alert-circle-outline' size={48} color='#EF4444' />
+                <Text className='text-gray-700 font-bold text-lg mt-3 text-center'>{error || 'Job not found'}</Text>
+                <TouchableOpacity onPress={() => navigation.goBack()} className='mt-5 bg-green-500 rounded-xl px-8 py-3'>
+                    <Text className='text-white font-bold'>Go Back</Text>
+                </TouchableOpacity>
+            </SafeAreaView>
+        )
     }
+
+    const currentStatusIndex = STATUS_ORDER.indexOf(job.status)
+    const isDelivered = job.status === 'DELIVERED'
+
+    const fare = job.estimatedFare ?? 0
+    const platformFee = parseFloat((fare * 0.15).toFixed(2))
+    const driverEarnings = parseFloat((fare - platformFee).toFixed(2))
 
     return (
         <SafeAreaView className='flex-1 bg-gray-50' edges={['top']}>
             <ScrollView showsVerticalScrollIndicator={false}>
                 {/* Header */}
-
-                <View className='flex-row items-center px-6 py-4 bg-gray-50'>
-                    <TouchableOpacity onPress={handleBack} activeOpacity={0.7}>
-                        <Ionicons name="arrow-back" size={28} color="#1C1C1C" />
+                <View className='flex-row items-center px-5 py-4 bg-white border-b border-gray-100'>
+                    <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
+                        <Ionicons name='arrow-back' size={26} color='#111827' />
                     </TouchableOpacity>
-                    <Text className='text-2xl font-bold text-gray-dark ml-4'>
-                        Job Details
-                    </Text>
-                </View>
-
-                {/* Map Section */}
-                <View className='mx-4 mt-4 mb-6 rounded-2xl overflow-hidden' style={{ height: 250, elevation: 3 }}>
-                    <ImageBackground
-                        source={{ uri: 'https://via.placeholder.com/400x250/E0E7FF/6366F1?text=Live+Tracking+Map' }}
-                        className='flex-1 items-center justify-center'
-                        resizeMode='cover'
-                    >
-                        <View className='absolute top-4 left-4 flex-row items-center gap-2 bg-white px-3 py-2 rounded-lg'>
-                            <View className='w-2 h-2 rounded-full bg-green-500' />
-                            <Text className='text-sm font-semibold text-gray-800'>Live Tracking</Text>
-                        </View>
-
-                        <TouchableOpacity
-                            onPress={handleViewMap}
-                            className='bg-white rounded-lg px-6 py-3 flex-row items-center gap-2'
-                            style={{ elevation: 4 }}
-                        >
-                            <MaterialIcons name='map' size={20} color='#6B7280' />
-                            <Text className='font-semibold text-gray-600'>View Map</Text>
-                        </TouchableOpacity>
-                    </ImageBackground>
-                </View>
-
-                {/* Status Section */}
-                <View className='mx-4 mb-8'>
-                    <View className='flex-row items-center justify-between mb-4'>
-                        <Text className='text-2xl font-bold text-gray-900'>Status</Text>
-                        <Text className='text-base font-semibold text-green-500'>{jobDetails.status}</Text>
+                    <Text className='text-xl font-bold text-gray-900 ml-4'>Job Details</Text>
+                    <View className='ml-auto bg-green-50 rounded-xl px-3 py-1'>
+                        <Text className='text-sm font-bold text-green-600'>
+                            {STATUS_LABEL[job.status] ?? job.status}
+                        </Text>
                     </View>
+                </View>
 
-                    {/* Timeline */}
+                {/* Job ID + Date */}
+                <View className='mx-4 mt-4 bg-white rounded-2xl p-4' style={{ elevation: 2 }}>
+                    <View className='flex-row justify-between items-center'>
+                        <View>
+                            <Text className='text-xs font-bold text-gray-400 mb-1'>JOB ID</Text>
+                            <Text className='text-base font-bold text-gray-900'>#{job.id.slice(-8).toUpperCase()}</Text>
+                        </View>
+                        <View className='items-end'>
+                            <Text className='text-xs font-bold text-gray-400 mb-1'>DATE</Text>
+                            <Text className='text-sm font-semibold text-gray-700'>
+                                {new Date(job.createdAt).toLocaleDateString('en-US', {
+                                    month: 'short', day: 'numeric', year: 'numeric',
+                                })}
+                            </Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Status Timeline */}
+                <View className='mx-4 mt-4 mb-2'>
+                    <Text className='text-base font-black text-gray-900 mb-3'>STATUS TIMELINE</Text>
                     <View className='bg-white rounded-2xl p-5' style={{ elevation: 2 }}>
-                        {statusPoints.map((point, index) => (
-                            <View key={point.id}>
-                                <View className='flex-row'>
-                                    <View className='items-center mr-4'>
-                                        <View
-                                            className={`w-8 h-8 rounded-full border-2 items-center justify-center ${
-                                                point.completed
-                                                    ? 'bg-green-500 border-green-500'
-                                                    : point.isCurrentActive
-                                                      ? 'bg-green-500 border-green-500'
-                                                      : 'bg-orange-300 border-orange-300'
-                                            }`}
-                                        >
-                                            {point.completed || point.isCurrentActive ? (
-                                                <Ionicons name='checkmark' size={16} color='white' />
-                                            ) : (
-                                                <View className='w-2 h-2 rounded-full bg-white' />
+                        {STATUS_ORDER.map((s, index) => {
+                            const isDone = index < currentStatusIndex || isDelivered
+                            const isCurrent = index === currentStatusIndex && !isDelivered
+                            const isPending = index > currentStatusIndex
+
+                            return (
+                                <View key={s}>
+                                    <View className='flex-row'>
+                                        <View className='items-center mr-4'>
+                                            <View
+                                                className='w-8 h-8 rounded-full border-2 items-center justify-center'
+                                                style={{
+                                                    backgroundColor: isDone ? '#43B047' : isCurrent ? '#43B047' : '#F3F4F6',
+                                                    borderColor: isDone ? '#43B047' : isCurrent ? '#43B047' : '#E5E7EB',
+                                                }}
+                                            >
+                                                {(isDone || isCurrent) ? (
+                                                    <Ionicons name='checkmark' size={16} color='white' />
+                                                ) : (
+                                                    <View className='w-2 h-2 rounded-full bg-gray-400' />
+                                                )}
+                                            </View>
+                                            {index !== STATUS_ORDER.length - 1 && (
+                                                <View
+                                                    className='w-0.5 h-10 my-1'
+                                                    style={{ backgroundColor: isDone ? '#43B047' : '#E5E7EB' }}
+                                                />
                                             )}
                                         </View>
-
-
-                                        {index !== statusPoints.length - 1 && (
-                                            <View className='w-0.5 h-12 bg-gray-300 my-1' />
-                                        )}
-                                    </View>
-
-
-                                    <View className='flex-1 py-2'>
-                                        <View className='flex-row items-center justify-between mb-1'>
-                                            <Text className='text-base font-bold text-gray-900'>{point.title}</Text>
+                                        <View className='flex-1 pb-2 pt-1'>
                                             <Text
-                                                className='text-sm font-semibold'
-                                                style={{ color: point.timeColor || '#9CA3AF' }}
+                                                className='text-sm font-bold mb-0.5'
+                                                style={{ color: isPending ? '#9CA3AF' : '#111827' }}
                                             >
-                                                {point.time}
+                                                {STATUS_LABEL[s]}
+                                            </Text>
+                                            <Text className='text-xs' style={{ color: isPending ? '#D1D5DB' : '#6B7280' }}>
+                                                {STATUS_DESCRIPTION[s]}
                                             </Text>
                                         </View>
-                                        <Text className='text-sm text-gray-500'>{point.description}</Text>
                                     </View>
                                 </View>
-                            </View>
-                        ))}
+                            )
+                        })}
                     </View>
                 </View>
 
-                {/* Vehicle Info Section */}
-                <View className='mx-4 mb-8'>
-                    <View className='flex-row items-center mb-4'>
-                        <Text className='text-2xl font-bold text-gray-900 flex-1'>VEHICLE INFO</Text>
-                        <View className='w-10 h-10 rounded-full bg-blue-100 items-center justify-center'>
-                            <MaterialIcons name='local-shipping' size={20} color='#3B82F6' />
-                        </View>
-                    </View>
-
+                {/* Route Details */}
+                <View className='mx-4 mt-4'>
+                    <Text className='text-base font-black text-gray-900 mb-3'>ROUTE DETAILS</Text>
                     <View className='bg-white rounded-2xl p-5' style={{ elevation: 2 }}>
-                        {/* First Row */}
-                        <View className='flex-row gap-4 mb-6 pb-6 border-b border-gray-200'>
-                            <View className='flex-1'>
-                                <Text className='text-xs font-semibold text-gray-500 mb-2'>Vehicle Model</Text>
-                                <Text className='text-base font-bold text-gray-900'>{jobDetails.vehicle.model}</Text>
-                            </View>
-                            <View className='flex-1'>
-                                <Text className='text-xs font-semibold text-gray-500 mb-2'>License Plate</Text>
-                                <Text className='text-base font-bold text-gray-900'>{jobDetails.vehicle.licensePlate}</Text>
-                            </View>
-                        </View>
-
-                        {/* Second Row */}
-                        <View className='flex-row gap-4'>
-                            <View className='flex-1'>
-                                <Text className='text-xs font-semibold text-gray-500 mb-2'>Trailer Type</Text>
-                                <Text className='text-base font-bold text-gray-900'>{jobDetails.vehicle.trailerType}</Text>
-                            </View>
-                            <View className='flex-1'>
-                                <Text className='text-xs font-semibold text-gray-500 mb-2'>Weight</Text>
-                                <Text className='text-base font-bold text-gray-900'>{jobDetails.vehicle.weight}</Text>
-                            </View>
-                        </View>
-                    </View>
-                </View>
-
-                {/* Route Details Section */}
-                <View className='mx-4 mb-12'>
-                    <Text className='text-2xl font-bold text-gray-900 mb-4'>Route Details</Text>
-
-                    <View className='bg-white rounded-2xl p-5' style={{ elevation: 2 }}>
-                        {/* Pickup Location */}
-                        <View className='flex-row mb-6 pb-6 border-b border-gray-200'>
+                        <View className='flex-row mb-5 pb-5 border-b border-gray-100'>
                             <View className='mr-4'>
                                 <View className='w-8 h-8 rounded-full bg-orange-100 items-center justify-center'>
                                     <Ionicons name='location' size={16} color='#F59E0B' />
                                 </View>
-                                <View className='w-0.5 h-8 bg-gray-300 mt-2 ml-3.5' />
+                                <View className='w-0.5 h-8 bg-gray-200 mt-2 ml-3.5' />
                             </View>
-                            <View className='flex-1'>
-                                <Text className='text-xs font-bold text-gray-500 mb-1'>PICKUP LOCATION</Text>
-                                <Text className='text-base font-semibold text-gray-900'>{jobDetails.route.pickupLocation}</Text>
+                            <View className='flex-1 pt-1'>
+                                <Text className='text-xs font-bold text-gray-400 mb-1'>PICKUP LOCATION</Text>
+                                <Text className='text-sm font-semibold text-gray-900'>{job.pickupAddress}</Text>
                             </View>
                         </View>
-
-                        {/* Dropoff Location */}
                         <View className='flex-row'>
                             <View className='mr-4'>
                                 <View className='w-8 h-8 rounded-full bg-green-100 items-center justify-center'>
-                                    <Ionicons name='location' size={16} color='#10B981' />
+                                    <MaterialCommunityIcons name='flag-checkered' size={14} color='#10B981' />
                                 </View>
                             </View>
-                            <View className='flex-1'>
-                                <Text className='text-xs font-bold text-gray-500 mb-1'>DROP-OFF LOCATION</Text>
-                                <Text className='text-base font-semibold text-gray-900'>{jobDetails.route.dropoffLocation}</Text>
+                            <View className='flex-1 pt-1'>
+                                <Text className='text-xs font-bold text-gray-400 mb-1'>DROP-OFF LOCATION</Text>
+                                <Text className='text-sm font-semibold text-gray-900'>{job.dropoffAddress}</Text>
                             </View>
                         </View>
                     </View>
                 </View>
+
+                {/* Trip Stats */}
+                <View className='mx-4 mt-4 flex-row gap-3'>
+                    <View className='flex-1 bg-white rounded-2xl p-4 items-center' style={{ elevation: 2 }}>
+                        <MaterialIcons name='local-shipping' size={20} color='#9CA3AF' />
+                        <Text className='text-xs text-gray-400 mt-1'>Vehicle</Text>
+                        <Text className='text-sm font-bold text-gray-900 mt-1 text-center'>
+                            {job.truckType?.name ?? '—'}
+                        </Text>
+                    </View>
+                    <View className='flex-1 bg-white rounded-2xl p-4 items-center' style={{ elevation: 2 }}>
+                        <Ionicons name='navigate-outline' size={20} color='#9CA3AF' />
+                        <Text className='text-xs text-gray-400 mt-1'>Distance</Text>
+                        <Text className='text-sm font-bold text-gray-900 mt-1'>
+                            {job.distanceKm != null ? `${job.distanceKm.toFixed(1)} km` : '—'}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* Vehicle Info */}
+                {(job.driver?.truckModel || job.driver?.numberPlate) && (
+                    <View className='mx-4 mt-4'>
+                        <Text className='text-base font-black text-gray-900 mb-3'>VEHICLE INFO</Text>
+                        <View className='bg-white rounded-2xl p-5 flex-row gap-4' style={{ elevation: 2 }}>
+                            {job.driver?.truckModel && (
+                                <View className='flex-1'>
+                                    <Text className='text-xs font-bold text-gray-400 mb-1'>MODEL</Text>
+                                    <Text className='text-sm font-bold text-gray-900'>{job.driver.truckModel}</Text>
+                                </View>
+                            )}
+                            {job.driver?.numberPlate && (
+                                <View className='flex-1'>
+                                    <Text className='text-xs font-bold text-gray-400 mb-1'>LICENSE PLATE</Text>
+                                    <Text className='text-sm font-bold text-gray-900'>{job.driver.numberPlate}</Text>
+                                </View>
+                            )}
+                        </View>
+                    </View>
+                )}
+
+                {/* Earnings (completed jobs only) */}
+                {isDelivered && (
+                    <View className='mx-4 mt-4 mb-8'>
+                        <Text className='text-base font-black text-gray-900 mb-3'>EARNINGS BREAKDOWN</Text>
+                        <View className='bg-white rounded-2xl p-5' style={{ elevation: 2 }}>
+                            <View className='flex-row justify-between items-center py-3 border-b border-gray-100'>
+                                <Text className='text-gray-500'>Estimated Fare</Text>
+                                <Text className='text-gray-900 font-bold'>${fare.toFixed(2)}</Text>
+                            </View>
+                            <View className='flex-row justify-between items-center py-3 border-b border-gray-100'>
+                                <Text className='text-gray-500'>Platform Fee (15%)</Text>
+                                <Text className='text-red-500 font-bold'>−${platformFee.toFixed(2)}</Text>
+                            </View>
+                            <View className='flex-row justify-between items-center py-4'>
+                                <Text className='text-gray-900 font-black'>Your Earnings</Text>
+                                <Text className='text-2xl font-black text-green-500'>${driverEarnings.toFixed(2)}</Text>
+                            </View>
+                        </View>
+                    </View>
+                )}
+
+                {!isDelivered && <View className='mb-8' />}
             </ScrollView>
         </SafeAreaView>
     )

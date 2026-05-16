@@ -3,7 +3,8 @@ import { NavigationProp, useNavigation, useRoute } from '@react-navigation/nativ
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import axios from 'axios'
 import { IPA_BASE } from '@env'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
+import { useRouteDirection } from '../../../../Utils/hooks/useRouteDirection'
 import {
   ActivityIndicator,
   Alert,
@@ -79,6 +80,7 @@ const UserLiveTracking = () => {
   const [jobStatus, setJobStatus] = useState<JobStatus>('BOOKED')
   const [driverLocation, setDriverLocation] = useState<Coords | null>(null)
   const [isCalling, setIsCalling] = useState(false)
+  const { getRoute, routeData: fetchedRoute } = useRouteDirection()
 
   // ── Initial data load ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -214,6 +216,15 @@ const UserLiveTracking = () => {
       socketService.offJobStatusUpdate(onStatusUpdate)
     }
   }, [resolvedJobId])
+
+  // Fetch route when job has coords but no pre-computed route points (e.g. opened from active jobs list)
+  useEffect(() => {
+    if (!job?.pickup || !job?.dropoff || job.routePoints?.length) return
+    getRoute(
+      { id: 'pickup', title: 'Pickup', address: '', latitude: job.pickup.latitude, longitude: job.pickup.longitude },
+      { id: 'dropoff', title: 'Dropoff', address: '', latitude: job.dropoff.latitude, longitude: job.dropoff.longitude }
+    )
+  }, [job?.pickup, job?.dropoff])
 
   // Fit map when real locations arrive
   useEffect(() => {
@@ -382,15 +393,19 @@ const UserLiveTracking = () => {
             </View>
           </Marker>
 
-          {/* Route polyline — only when real route data is available */}
-          {job!.routePoints && job!.routePoints.length > 0 && (
-            <Polyline
-              coordinates={job!.routePoints}
-              strokeColor='#FFA500'
-              strokeWidth={4}
-              lineDashPattern={[10, 10]}
-            />
-          )}
+          {/* Route polyline — params route takes priority, falls back to freshly fetched */}
+          {(() => {
+            const pts = job!.routePoints?.length ? job!.routePoints : fetchedRoute?.points
+            if (!pts?.length) return null
+            return (
+              <Polyline
+                coordinates={pts}
+                strokeColor='#FFA500'
+                strokeWidth={4}
+                lineDashPattern={[10, 10]}
+              />
+            )
+          })()}
 
           {/* Driver marker — only when real GPS is received from socket */}
           {driverLocation && (

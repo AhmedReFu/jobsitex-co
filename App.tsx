@@ -44,7 +44,6 @@ import UserMainTabs from './src/home/Users/TabNavigation/TabNavigation';
 import UserProfile from './src/home/Users/TabNavigation/UserProfile';
 import { AuthStackParamList } from './src/Navigation/type';
 import OnBoardingFrist from './src/Onboarding/OnBoardingFrist';
-import RoleSelect from './src/Onboarding/RoleSelect';
 import SplashScreen from './src/Onboarding/SplashScreen';
 import LocationPermission from './src/Settings/LocationPermission';
 import { AuthProvider, useAuth } from './src/Auth/AuthContext';
@@ -80,7 +79,6 @@ function AppNavigation() {
     >
       {/* ── Onboarding / Auth ─────────────────────────────────────────────── */}
       <RootNav.Screen name="SplashScreen" component={SplashScreen} />
-      <RootNav.Screen name="RoleSelect" component={RoleSelect} />
       <RootNav.Screen name="OnBoardingFrist" component={OnBoardingFrist} />
       <RootNav.Screen name="SignIn" options={{ animation: 'slide_from_left' }} component={SignIn} />
       <RootNav.Screen name="SignUp" options={slideRight} component={SignUp} />

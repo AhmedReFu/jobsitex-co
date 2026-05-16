@@ -53,13 +53,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const checkFirstLaunch = async () => {
     try {
-      const firstLaunch = await AsyncStorage.getItem('isFirstLaunch');
-      if (firstLaunch === null) {
-        setIsFirstLaunch(true);
-        await AsyncStorage.setItem('isFirstLaunch', 'false');
-      } else {
-        setIsFirstLaunch(false);
-      }
+      const [[, firstLaunch], [, onboardingDone]] = await AsyncStorage.multiGet(['isFirstLaunch', 'onboardingCompleted']);
+      setIsFirstLaunch(firstLaunch === null || onboardingDone !== 'true');
     } catch (error) {
       console.error('Error checking first launch:', error);
       setIsFirstLaunch(false);
@@ -144,6 +139,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const setHasCompletedOnboarding = async (value: boolean) => {
     await AsyncStorage.setItem('onboardingCompleted', value.toString());
+    if (value) {
+      await AsyncStorage.setItem('isFirstLaunch', 'false');
+      setIsFirstLaunch(false);
+    }
     setHasCompletedOnboardingState(value);
   };
 
