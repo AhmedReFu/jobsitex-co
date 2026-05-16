@@ -24,6 +24,7 @@ import DriverPayout from './src/home/Drivers/screens/DriverProfile/DriverPayout'
 import VehicleDetails from './src/home/Drivers/screens/DriverProfile/VehicleDetails';
 import DriverProfile from './src/home/Drivers/TabNavigation/DriverProfile';
 import DriverMainTabs from './src/home/Drivers/TabNavigation/TabNavigation';
+import UserDirectBooking from './src/home/Users/screens/UserHome/UserDirectBooking'
 import UserFindingDrivers from './src/home/Users/screens/UserHome/UserFindingDrivers';
 import UserMappingView from './src/home/Users/screens/UserHome/UserMappingView';
 import UserNearByTrucks from './src/home/Users/screens/UserHome/UserNearByTrucks';
@@ -102,6 +103,7 @@ function AppNavigation() {
       <RootNav.Screen name="UserCompleteJobsDetails" options={slideRight} component={UserCompleteJobsDetails} />
       <RootNav.Screen name="UserRateDriver" options={slideRight} component={UserRateDriver} />
       <RootNav.Screen name="UserNearByTrucks" options={slideRight} component={UserNearByTrucks} />
+      <RootNav.Screen name="UserDirectBooking" options={slideRight} component={UserDirectBooking} />
       <RootNav.Screen name="UserMappingView" options={slideRight} component={UserMappingView} />
       <RootNav.Screen name="UserSetDropOff" options={slideRight} component={UserSetDropOff} />
       <RootNav.Screen name="UserSearchLocation" options={slideRight} component={UserSearchLocation} />

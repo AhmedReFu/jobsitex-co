@@ -17,6 +17,10 @@ export interface Truck {
     iconColor: string
     isBooked?: boolean
     driverId?: string
+    driverUserId?: string
+    truckTypeId?: string
+    driverName?: string
+    driverAvatar?: string | null
     rating?: number
 }
 
@@ -31,7 +35,7 @@ type ApiDriver = {
     longitude: number | null
     distanceKm: number
     truckType: { id: string; name: string; description: string | null } | null
-    user: { fullName: string; avatar: string | null }
+    user: { id: string; fullName: string; avatar: string | null }
 }
 
 const ICON_MAP: Record<string, { icon: string; bg: string; color: string }> = {
@@ -69,6 +73,10 @@ const mapDriverToTruck = (item: ApiDriver): Truck => {
         iconColor: iconDetails.color,
         isBooked: !item.isAvailable,
         driverId: item.id,
+        driverUserId: item.user?.id,
+        truckTypeId: item.truckType?.id,
+        driverName: item.user?.fullName,
+        driverAvatar: item.user?.avatar,
         rating: undefined,
     }
 }

@@ -4,9 +4,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { NavigationProp, useNavigation, useRoute } from '@react-navigation/native'
 import axios from 'axios'
 import React, { useEffect, useState } from 'react'
-import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AuthStackParamList } from '../../../../Navigation/type'
+import { useLocation } from '../../../../Utils/hooks/useLocation'
 
 type JobDetail = {
   id: string
@@ -17,11 +18,12 @@ type JobDetail = {
   distanceKm: number | null
   workNote: string | null
   updatedAt: string
-  truckType: { name: string } | null
+  truckType: { id: string; name: string } | null
   driver: {
+    id: string
     numberPlate: string | null
     truckModel: string | null
-    user: { fullName: string; avatar: string | null }
+    user: { id: string; fullName: string; avatar: string | null }
   } | null
   review: { rating: number } | null
 }
@@ -35,10 +37,12 @@ export default function UserCompleteJobsDetails() {
   const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
   const route = useRoute<any>()
   const jobId: string = route.params?.jobId ?? ''
+  const { locationCoords } = useLocation()
 
   const [job, setJob] = useState<JobDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [rebooking, setRebooking] = useState(false)
 
   useEffect(() => {
     const fetchJob = async () => {
@@ -78,6 +82,47 @@ export default function UserCompleteJobsDetails() {
         </View>
       </SafeAreaView>
     )
+  }
+
+  const handleRebook = async () => {
+    if (!job.driver?.user?.id || !job.truckType?.id) {
+      Alert.alert('Rebook', 'Driver information is unavailable for rebooking.')
+      return
+    }
+    try {
+      setRebooking(true)
+      const token = await AsyncStorage.getItem('vToken')
+      const params: Record<string, any> = {
+        truckTypeId: job.truckType.id,
+        radiusKm: 30,
+      }
+      if (locationCoords) {
+        params.lat = locationCoords.latitude
+        params.lng = locationCoords.longitude
+      }
+      const res = await axios.get(`${IPA_BASE}/jobs/nearby-drivers`, {
+        params,
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 15000,
+      })
+      const drivers: any[] = res.data?.data ?? []
+      const found = drivers.find((d) => d.user?.id === job.driver!.user.id)
+      if (found) {
+        navigation.navigate('UserDirectBooking', {
+          driverUserId: job.driver.user.id,
+          truckTypeId: job.truckType.id,
+          truckName: job.truckType.name,
+          driverName: job.driver.user.fullName,
+          driverAvatar: job.driver.user.avatar,
+        })
+      } else {
+        Alert.alert('Driver Unavailable', 'This driver is not available in your area or is not active right now.')
+      }
+    } catch {
+      Alert.alert('Error', 'Could not check driver availability. Please try again.')
+    } finally {
+      setRebooking(false)
+    }
   }
 
   const fare = job.estimatedFare ?? 0
@@ -184,22 +229,39 @@ export default function UserCompleteJobsDetails() {
           </View>
         </View>
 
-        <View style={{ height: 110 }} />
+        <View style={{ height: 130 }} />
       </ScrollView>
 
-      {/* Bottom Sticky Button */}
-      {!job.review && (
-        <View style={styles.bottomBar}>
+      {/* Bottom Sticky Buttons */}
+      <View style={styles.bottomBar}>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          {!job.review && (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={[styles.reviewBtn, { flex: 1 }]}
+              onPress={() => navigation.navigate('UserRateDriver', { jobId: job.id })}
+            >
+              <Ionicons name='star-outline' size={18} color='#fff' />
+              <Text style={styles.reviewText}>RATE</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             activeOpacity={0.9}
-            style={styles.reviewBtn}
-            onPress={() => navigation.navigate('UserRateDriver', { jobId: job.id })}
+            disabled={rebooking}
+            style={[styles.rebookBtn, !job.review ? { flex: 1 } : { flex: 1 }]}
+            onPress={handleRebook}
           >
-            <Ionicons name='star-outline' size={18} color='#fff' />
-            <Text style={styles.reviewText}>RATE YOUR DRIVER</Text>
+            {rebooking ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Ionicons name='refresh' size={18} color='#fff' />
+                <Text style={styles.reviewText}>REBOOK</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
-      )}
+      </View>
     </SafeAreaView>
   )
 }
@@ -294,5 +356,6 @@ const styles = StyleSheet.create({
     }),
   },
   reviewBtn: { height: 54, borderRadius: 16, backgroundColor: GREEN, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  rebookBtn: { height: 54, borderRadius: 16, backgroundColor: '#F59E0B', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   reviewText: { color: '#fff', fontWeight: '900', letterSpacing: 0.6 },
 })

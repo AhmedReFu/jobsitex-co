@@ -60,10 +60,17 @@ const UserNearByTrucks = () => {
   }
 
   const handleBookPress = (truck: any) => {
-    (navigation as any).navigate("UserMappingView", {
-      truckId: truck.id,
-      driverId: truck.driverId,
-      truckName: truck.name
+    if (!truck.driverUserId || !truck.truckTypeId) {
+      // Fallback: open normal booking flow
+      navigation.navigate('UserMappingView')
+      return
+    }
+    navigation.navigate('UserDirectBooking', {
+      driverUserId: truck.driverUserId,
+      truckTypeId: truck.truckTypeId,
+      truckName: truck.name,
+      driverName: truck.driverName,
+      driverAvatar: truck.driverAvatar,
     })
   }
 

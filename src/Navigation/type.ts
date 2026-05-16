@@ -18,6 +18,13 @@ export type AuthStackParamList = {
   };
   UserMainTabs: undefined;
   UserNearByTrucks: undefined;
+  UserDirectBooking: {
+    driverUserId: string;
+    truckTypeId: string;
+    truckName: string;
+    driverName?: string;
+    driverAvatar?: string | null;
+  };
   UserMappingView: undefined;
   UserSetDropOff: undefined;
   UserSearchLocation: undefined;
