@@ -73,7 +73,7 @@ const DriverJobsDetails = ({ route }: any) => {
     ])
 
     const handleViewMap = () => {
-        console.log('View Map')
+        // map view not yet implemented
     }
     const handleBack = () => {
         navigation.goBack()

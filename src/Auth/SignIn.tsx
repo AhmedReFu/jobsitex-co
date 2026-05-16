@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { NavigationProp, useNavigation, useRoute } from '@react-navigation/native'
 import axios from 'axios'
 import React, { useState } from 'react'
+import { useAuth } from '../Auth/AuthContext'
 import {
     Image,
     Text,
@@ -35,6 +36,7 @@ export type SafeUser = {
 
 const SignIn = () => {
     const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
+    const { signIn } = useAuth()
     const toast = useToast()
     const route = useRoute<any>()
     const type = route.params?.type
@@ -74,36 +76,24 @@ const SignIn = () => {
             if (data?.success === true) {
                 const user = data.data.user
 
-                const safeUser: SafeUser = {
-                    _id: user.id ?? user._id,
-                    fullName: user.fullName,
+                const authUser = {
+                    id: user.id ?? user._id,
                     email: user.email,
+                    fullName: user.fullName,
                     phoneNumber: user.mobileNumber ?? user.phoneNumber ?? '',
-                    role: user.role,
-                    status: user.status ?? 'ACTIVE',
+                    role: (user.role === 'DRIVER' ? 'DRIVER' : 'USER') as 'USER' | 'DRIVER',
                     isVerified: user.isEmailVerified ?? user.isVerified ?? false,
-                    imageUrl: user.avatar ?? user.image?.url ?? null,
-                    subscriptionStatus: user.subscription?.status ?? null,
+                    profile: user.avatar ?? user.image?.url ?? undefined,
                 }
 
-                await AsyncStorage.multiSet([
-                    ['vToken', data.data.accessToken],
-                    ['vRefreshToken', data.data.refreshToken],
-                    ['vUser', JSON.stringify(safeUser)],
-                ])
+                await AsyncStorage.setItem('vRefreshToken', data.data.refreshToken)
+                await signIn(authUser, data.data.accessToken)
 
-                // ✅ Success Toast - auto hide হবে
                 toast.show({
                     message: 'Login successful! Welcome back.',
                     type: 'success',
                     style: 'top',
                 })
-
-                setTimeout(() => {
-                    navigation.navigate('LocationPermission', {
-                        type: user.role,
-                    } as any)
-                }, 1000)
             } else {
                 // ✅ Error Toast
                 toast.show({
@@ -114,8 +104,6 @@ const SignIn = () => {
             }
         } catch (e: any) {
             const msg = e?.response?.data?.message || e?.message || 'Something went wrong'
-            console.log('Sign in error:', msg)
-
             // Handle specific backend messages
             if (msg === 'Profile setup not completed. Please complete your profile first!') {
                 // ✅ Info Toast with button action

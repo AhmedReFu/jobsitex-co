@@ -17,44 +17,28 @@ const LocationPermission = () => {
     const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
     const route = useRoute<any>()
     const type = route.params?.type
-    console.log(type)
+
     const handleAllowLocation = async () => {
         try {
             const { status } = await Location.requestForegroundPermissionsAsync()
 
             if (status === 'granted') {
-                console.log('Location permission granted');
+                // Request background permission
+                await Location.requestBackgroundPermissionsAsync()
 
-                // Request background permission for "Permanent" access
-                const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
-
-                if (backgroundStatus !== 'granted') {
-                    console.log('Background location permission denied');
-                    // We can still proceed, but the user is informed it won't be "Permanent" in the background
-                }
-
-                // Check if location services are enabled
                 const isLocationAvailable = await Location.hasServicesEnabledAsync()
 
                 if (!isLocationAvailable) {
                     Alert.alert(
                         'Location Services Disabled',
                         'Please enable location services in your device settings to use this feature.',
-                        [
-                            { text: 'OK' }
-                        ]
+                        [{ text: 'OK' }]
                     )
                     return
                 }
 
-                // Get current location
-                const location = await Location.getCurrentPositionAsync({
-                    accuracy: Location.Accuracy.High
-                })
-                console.log('Current location:', location)
+                await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High })
 
-                // Navigate to next screen (Home or Main)
-                console.log(type)
                 if (type === "CUSTOMER" || type === "USER") {
                     navigation.navigate('UserMainTabs')
                 }
@@ -76,9 +60,6 @@ const LocationPermission = () => {
     }
 
     const handleSkip = () => {
-        console.log('Location permission skipped')
-        // Navigate to next screen without location
-        // or your main screen
         if (type === "CUSTOMER" || type === "USER") {
             navigation.navigate('UserMainTabs')
         }

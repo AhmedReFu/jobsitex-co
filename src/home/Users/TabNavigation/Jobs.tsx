@@ -30,6 +30,7 @@ type Job = {
   title: string
   dateText: string
   status: JobStatus
+  apiStatus: string
   price: number
 }
 
@@ -38,6 +39,7 @@ const mapJob = (item: ApiJob): Job => ({
   title: item.truckType?.name ?? 'Truck Job',
   dateText: new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
   status: ACTIVE_STATUSES.has(item.status) ? 'active' : 'completed',
+  apiStatus: item.status,
   price: item.estimatedFare ?? 0,
 })
 
@@ -196,27 +198,36 @@ function JobCard({
   onView: () => void
   onPrimary: () => void
 }) {
+  const isCancelled = job.apiStatus === 'CANCELLED'
   const primaryLabel = job.status === 'active' ? 'TRACK JOB' : 'VIEW DETAILS'
-  const subText = `${job.dateText} • ${job.status === 'active' ? 'Active' : 'Completed'}`
+
+  const statusLabel = isCancelled ? 'Cancelled' : job.status === 'active' ? 'Active' : 'Completed'
+  const subText = `${job.dateText} • ${statusLabel}`
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, isCancelled && styles.cardCancelled]}>
       <View style={styles.cardTop}>
         <View style={{ flex: 1 }}>
           <Text style={styles.cardTitle}>{job.title}</Text>
-          <Text style={styles.cardSub}>{subText}</Text>
+          <Text style={[styles.cardSub, isCancelled && { color: '#EF4444' }]}>{subText}</Text>
         </View>
-        <Text style={styles.price}>${job.price.toFixed(2)}</Text>
+        <Text style={[styles.price, isCancelled && { color: '#9CA3AF' }]}>
+          ${job.price.toFixed(2)}
+        </Text>
       </View>
 
-      <View style={styles.cardBottom}>
-        <TouchableOpacity activeOpacity={0.85} onPress={onView} style={styles.btnGhost}>
-          <Text style={styles.btnGhostText}>View</Text>
-        </TouchableOpacity>
-        <TouchableOpacity activeOpacity={0.85} onPress={onPrimary} style={styles.btnPrimary}>
-          <Text style={styles.btnPrimaryText}>{primaryLabel}</Text>
-        </TouchableOpacity>
-      </View>
+      {!isCancelled && (
+        <View style={styles.cardBottom}>
+          {job.status === 'active' && (
+            <TouchableOpacity activeOpacity={0.85} onPress={onView} style={styles.btnGhost}>
+              <Text style={styles.btnGhostText}>View</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity activeOpacity={0.85} onPress={onPrimary} style={styles.btnPrimary}>
+            <Text style={styles.btnPrimaryText}>{primaryLabel}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   )
 }
@@ -264,6 +275,11 @@ const styles = StyleSheet.create({
       ios: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 8 } },
       android: { elevation: 2 },
     }),
+  },
+  cardCancelled: {
+    backgroundColor: '#FFF8F8',
+    borderWidth: 1,
+    borderColor: '#FECACA',
   },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   cardTitle: { fontSize: 15, fontWeight: '800', color: '#111827' },

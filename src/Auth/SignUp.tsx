@@ -314,7 +314,7 @@ const SignUp = () => {
                     if (country) setSelectedCountry(country);
                 }
             } catch {
-                console.log('Country detection failed, using default');
+                // use default country
             }
         };
 
@@ -458,8 +458,8 @@ const SignUp = () => {
         (navigation as any).replace('SignIn', { type });
     };
 
-    const handleGoogleSignUp = () => console.log('Google sign up');
-    const handleAppleSignUp = () => console.log('Apple sign up');
+    const handleGoogleSignUp = () => toast.show({ message: 'Google Sign Up coming soon', type: 'info', style: 'top' })
+    const handleAppleSignUp = () => toast.show({ message: 'Apple Sign Up coming soon', type: 'info', style: 'top' })
 
     return (
         <SafeAreaView className="flex-1 bg-gray-50">

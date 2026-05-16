@@ -98,10 +98,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }
 
   const fetchUserProfile = useCallback(async () => {
-    if (!token) {
-      console.log('No token available')
-      return
-    }
+    if (!token) return
 
     setIsLoading(true)
     setError(null)
@@ -116,8 +113,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         }
       )
-
-      console.log('User profile response:', response.data)
 
       if (response.data?.success && response.data?.data) {
         const userData: UserData = {
@@ -170,8 +165,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         }
       )
-
-      console.log('Update profile response:', response.data)
 
       if (response.data?.success && response.data?.data) {
         const updatedUser: UserData = {
@@ -229,8 +222,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       )
 
-      console.log('Change password response:', response.data)
-
       if (response.data?.success) {
         return true
       } else {
@@ -267,8 +258,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         }
       )
-
-      console.log('Delete account response:', response.data)
 
       if (response.data?.success) {
         await clearUser()

@@ -143,7 +143,7 @@ const Home = () => {
 
   const handleTrackPress = useCallback(() => {
     if (activeJob?.id) {
-      navigation.navigate("UserActiveJobsDetails", { jobId: activeJob.id })
+      navigation.navigate("UserLiveTracking", { jobId: activeJob.id })
     }
   }, [navigation, activeJob])
 

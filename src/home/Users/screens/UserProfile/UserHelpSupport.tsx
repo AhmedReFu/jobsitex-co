@@ -63,7 +63,7 @@ const UserHelpSupport = () => {
                     <Ionicons name="arrow-back" size={28} color="#1C1C1C" />
                 </TouchableOpacity>
                 <Text className='text-2xl font-bold text-gray-dark ml-4'>
-                    My Jobs
+                    Help & Support
                 </Text>
             </View>
 

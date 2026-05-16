@@ -103,12 +103,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signOut = async () => {
     try {
-      await AsyncStorage.multiRemove(['vToken', 'vRefreshToken', 'vUser', 'vDriver']);
+      await AsyncStorage.multiRemove(['vToken', 'vRefreshToken', 'vUser', 'vDriver', '@user_data', '@user_profile_image']);
+    } catch (error) {
+      console.error('Error clearing storage on sign out:', error);
+    } finally {
       setToken(null);
       setUser(null);
-    } catch (error) {
-      console.error('Error signing out:', error);
-      throw error;
     }
   };
 

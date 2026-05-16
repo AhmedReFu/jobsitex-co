@@ -441,8 +441,8 @@ const HeadingToPickup = () => {
                         showsUserLocation={false}
                         showsMyLocationButton={false}
                         initialRegion={{
-                            latitude: data?.pickupLat || 23.8103,
-                            longitude: data?.pickupLng || 90.4125,
+                            latitude: data!.pickupLat,
+                            longitude: data!.pickupLng,
                             latitudeDelta: 0.04,
                             longitudeDelta: 0.04,
                         }}

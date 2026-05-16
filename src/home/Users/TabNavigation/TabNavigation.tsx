@@ -1,11 +1,12 @@
 import { FontAwesome5, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { useNavigation, NavigationProp } from "@react-navigation/native";
 import React from "react";
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { AuthStackParamList } from "../../../Navigation/type";
 import Home from "../screens/UserHome/Home";
 import Alert from "./Alert";
 import Jobs from "./Jobs";
-import Truck from "./Truck";
 import UserProfile from "./UserProfile";
 
 const Tab = createBottomTabNavigator();
@@ -19,6 +20,8 @@ function CenterButton({ children, onPress }: any) {
 }
 
 export default function UserMainTabs() {
+    const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
+
     return (
         <Tab.Navigator
             screenOptions={{
@@ -69,10 +72,15 @@ export default function UserMainTabs() {
 
             <Tab.Screen
                 name="Truck"
-                component={Truck}
+                component={Home}
+                listeners={{
+                    tabPress: (e) => {
+                        e.preventDefault()
+                        navigation.navigate('UserLiveTracking', {})
+                    },
+                }}
                 options={{
                     tabBarIcon: () => (
-
                         <MaterialCommunityIcons name="dump-truck" size={32} color="white" />
                     ),
                     tabBarButton: (props) => <CenterButton {...props} />,

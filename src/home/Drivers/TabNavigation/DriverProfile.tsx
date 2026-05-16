@@ -62,7 +62,6 @@ const DriverProfile = () => {
         text: 'Logout',
         style: 'destructive',
         onPress: async () => {
-          await AsyncStorage.multiRemove(['vToken', 'vUser', 'vDriver', 'refreshToken'])
           await signOut()
         },
       },

@@ -45,8 +45,6 @@ export const useLocationSearch = () => {
           }
         )
 
-        console.log('Location search response:', response.data)
-
         if (response.data?.success && response.data?.data) {
           const mappedSuggestions = response.data.data.map((item: any) => ({
             address: item.address,

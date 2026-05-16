@@ -312,8 +312,8 @@ const UserFindingDrivers = () => {
           className='h-full w-full'
           style={{ flex: 1 }}
           initialRegion={{
-            latitude: pickup?.latitude ?? 23.8103,
-            longitude: pickup?.longitude ?? 90.4125,
+            latitude: pickup?.latitude ?? 0,
+            longitude: pickup?.longitude ?? 0,
             latitudeDelta: 0.05,
             longitudeDelta: 0.05,
           }}

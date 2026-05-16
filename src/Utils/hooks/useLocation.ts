@@ -28,8 +28,7 @@ export const useLocation = () => {
       const granted = status === 'granted'
       setHasPermission(granted)
       return granted
-    } catch (error) {
-      console.error('Error requesting location permission:', error)
+    } catch {
       return false
     }
   }, [])
@@ -39,8 +38,7 @@ export const useLocation = () => {
     try {
       const { status } = await Location.requestBackgroundPermissionsAsync()
       return status === 'granted'
-    } catch (error) {
-      console.error('Error requesting background location permission:', error)
+    } catch {
       return false
     }
   }, [])
@@ -72,8 +70,7 @@ export const useLocation = () => {
         return `${city}${stateCode ? ', ' + stateCode : ''}`
       }
       return 'Unknown Location'
-    } catch (error) {
-      console.error('Error getting address:', error)
+    } catch {
       return 'Unknown Location'
     }
   }, [])
@@ -103,8 +100,7 @@ export const useLocation = () => {
         }
       }
       return null
-    } catch (error) {
-      console.error('Error getting detailed address:', error)
+    } catch {
       return null
     }
   }, [])
@@ -131,7 +127,6 @@ export const useLocation = () => {
         longitude: location.coords.longitude,
       }
     } catch (error) {
-      console.error('Error getting current location:', error)
       throw error
     }
   }, [requestLocationPermission])
@@ -169,8 +164,7 @@ export const useLocation = () => {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude
       })
-    } catch (error) {
-      console.error('Error fetching location:', error)
+    } catch {
       setCurrentLocation('Error Getting Location')
     } finally {
       setIsLoadingLocation(false)
@@ -215,8 +209,7 @@ export const useLocation = () => {
       )
       
       return watcher
-    } catch (error) {
-      console.error('Error watching location:', error)
+    } catch {
       return null
     }
   }, [requestLocationPermission, getAddressFromCoordinates])

@@ -1,4 +1,3 @@
-// UserProfile.tsx - Fully integrated
 import { Ionicons } from '@expo/vector-icons'
 import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native'
 import * as ImagePicker from 'expo-image-picker'
@@ -21,7 +20,7 @@ import { AuthStackParamList } from '../../../Navigation/type'
 
 const UserProfile = () => {
     const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
-    const { user, isLoading, fetchUserProfile, updateProfile, saveProfileImageLocally, getProfileImage } = useUser()
+    const { user, isLoading, fetchUserProfile, updateProfile, deleteAccount, saveProfileImageLocally, getProfileImage } = useUser()
     const { signOut } = useAuth()
     const [profileImage, setProfileImage] = useState<string | null>(null)
     const [isRefreshing, setIsRefreshing] = useState(false)
@@ -131,8 +130,7 @@ const UserProfile = () => {
                     text: 'Delete',
                     style: 'destructive',
                     onPress: async () => {
-                        // Delete account logic will be handled in the delete account screen
-                        (navigation as any).navigate("UserDeleteAccount")
+                        await deleteAccount()
                     }
                 }
             ]
@@ -158,10 +156,6 @@ const UserProfile = () => {
                     style: 'destructive',
                     onPress: async () => {
                         await signOut()
-                        navigation.reset({
-                            index: 0,
-                            routes: [{ name: 'SignIn' }],
-                        })
                     }
                 }
             ]

@@ -29,21 +29,21 @@ export const ActiveJobCard: React.FC<ActiveJobCardProps> = ({ job, onTrackPress 
       }}
     >
       <View className='flex-row items-center justify-between mb-4'>
-        <View className='flex-row items-center gap-3'>
-          <View className='w-16 h-16 rounded-full items-center justify-center bg-blue-50'>
+        <View className='flex-row items-center gap-3 flex-1 mr-3'>
+          <View className='w-16 h-16 rounded-full items-center justify-center bg-blue-50 shrink-0'>
             <MaterialCommunityIcons name="truck" size={24} color="#2196F3" />
           </View>
-          <View>
-            <Text className='text-xl font-bold text-gray-dark'>
+          <View className='flex-1'>
+            <Text className='text-xl font-bold text-gray-dark' numberOfLines={1}>
               {job.name}
             </Text>
-            <Text className='text-lg text-gray-medium'>
+            <Text className='text-base text-gray-medium' numberOfLines={1}>
               ID: {job.jobId || job.id}
             </Text>
           </View>
         </View>
-        <View className='bg-blue-50 px-4 py-2 rounded-full'>
-          <Text className='text-lg font-semibold text-[#2196F3]'>
+        <View className='bg-blue-50 px-3 py-2 rounded-full shrink-0'>
+          <Text className='text-base font-semibold text-[#2196F3]' numberOfLines={1}>
             {job.statusText || 'On the way'}
           </Text>
         </View>

@@ -180,9 +180,22 @@ const DriverHome = () => {
         const loadUser = async () => {
             try {
                 const raw = await AsyncStorage.getItem('vUser')
-                if (raw) setUser(JSON.parse(raw) as SafeUser)
-            } catch (err) {
-                console.log('vUser load error:', err)
+                if (raw) {
+                    const p = JSON.parse(raw)
+                    setUser({
+                        _id: p._id ?? p.id ?? '',
+                        fullName: p.fullName ?? '',
+                        email: p.email ?? '',
+                        phoneNumber: p.phoneNumber ?? '',
+                        role: p.role ?? 'DRIVER',
+                        status: p.status ?? 'ACTIVE',
+                        isVerified: p.isVerified ?? false,
+                        imageUrl: p.imageUrl ?? p.profile ?? null,
+                        subscriptionStatus: p.subscriptionStatus ?? null,
+                    })
+                }
+            } catch {
+                // non-critical
             }
         }
         loadUser()
@@ -220,8 +233,8 @@ const DriverHome = () => {
 
             setDriver(safeDriver)
             await AsyncStorage.setItem('vDriver', JSON.stringify(safeDriver))
-        } catch (err: any) {
-            console.log('Driver details fetch error:', err?.response?.data || err?.message)
+        } catch {
+            // non-critical; cached value still displayed
         }
     }, [])
 
@@ -437,8 +450,8 @@ const DriverHome = () => {
                 } else {
                     driverSocketService.unsubscribeJobs().catch(() => {})
                 }
-            } catch (err) {
-                console.log('Socket connect error:', err)
+            } catch {
+                // socket connection failed; will retry on next focus
             }
         }
 
@@ -490,7 +503,6 @@ const DriverHome = () => {
     // ─── Handlers ─────────────────────────────────────────────────────────────
 
     const handleJobPress = async (job: JobCardData) => {
-        console.log(job)
         try {
             setIsStartingJob(true)
 
