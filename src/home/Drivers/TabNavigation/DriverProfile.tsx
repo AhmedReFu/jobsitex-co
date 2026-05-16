@@ -20,7 +20,7 @@ type DriverData = {
   totalEarnings: number
   driverStatus: string
   truckType: { name: string } | null
-  user: { fullName: string; email: string; avatar: string | null }
+  user: { fullName: string; email: string; avatar: string | null; mobileNumber: string | null }
   completedJobsCount?: number
 }
 
@@ -63,6 +63,7 @@ const DriverProfile = () => {
         style: 'destructive',
         onPress: async () => {
           await signOut()
+          navigation.reset({ index: 0, routes: [{ name: 'SignIn' }] })
         },
       },
     ])
@@ -70,6 +71,7 @@ const DriverProfile = () => {
 
   const name = driver?.user?.fullName ?? 'Driver'
   const email = driver?.user?.email ?? ''
+  const phone = driver?.user?.mobileNumber ?? ''
   const avatar = driver?.user?.avatar ?? null
   const vehicleType = driver?.truckType?.name ?? ''
   const earnings = driver?.totalEarnings ?? 0
@@ -142,10 +144,17 @@ const DriverProfile = () => {
               <Text className='text-base text-gray-800 ml-4'>{name}</Text>
             </View>
 
-            <View className='flex-row items-center'>
+            <View className='flex-row items-center mb-4'>
               <Ionicons name='mail-outline' size={24} color='#9CA3AF' />
               <Text className='text-base text-gray-800 ml-4'>{email}</Text>
             </View>
+
+            {phone ? (
+              <View className='flex-row items-center'>
+                <Ionicons name='call-outline' size={24} color='#9CA3AF' />
+                <Text className='text-base text-gray-800 ml-4'>{phone}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 

@@ -87,6 +87,7 @@ export type AuthStackParamList = {
     jobId: string;
   };
   DriverPayout: undefined;
+  DriverPendingVerification: undefined;
   VehicleDetails: undefined;
   Notification: undefined;
   PrivacyPolicy: undefined;

@@ -94,6 +94,29 @@ const SignIn = () => {
                     type: 'success',
                     style: 'top',
                 })
+
+                let dest: string = user.role === 'DRIVER' ? 'DriverMainTabs' : 'UserMainTabs'
+
+                if (user.role === 'DRIVER') {
+                    try {
+                        const profileRes = await axios.get(
+                            `${API_BASE_URL}/driver/profile`,
+                            { headers: { Authorization: `Bearer ${data.data.accessToken}` }, timeout: 10000 }
+                        )
+                        const profile = profileRes.data?.data
+                        if (!profile?.isProfileComplete) {
+                            dest = 'ProfileSetup'
+                        } else if (profile?.driverStatus !== 'APPROVED') {
+                            dest = 'DriverPendingVerification'
+                        }
+                    } catch {
+                        // network error — let them into DriverMainTabs; home screen guards will re-check
+                    }
+                }
+
+                setTimeout(() => {
+                    navigation.reset({ index: 0, routes: [{ name: dest as any }] })
+                }, 800)
             } else {
                 // ✅ Error Toast
                 toast.show({

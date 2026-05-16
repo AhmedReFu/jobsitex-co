@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { NavigationProp, useNavigation } from '@react-navigation/native';
-import { AuthStackParamList } from '../Navigation/type';
+import axios from 'axios';
+import { navigationRef } from '../Navigation/navigationRef';
 
 interface User {
   id: string;
@@ -70,6 +70,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     loadStoredData();
   }, []);
+
+  // Global 401 interceptor — kick to SignIn on expired/invalid token
+  useEffect(() => {
+    const id = axios.interceptors.response.use(
+      res => res,
+      async err => {
+        const url: string = err.config?.url ?? ''
+        if (err.response?.status === 401 && !url.includes('/auth/')) {
+          try {
+            await AsyncStorage.multiRemove(['vToken', 'vRefreshToken', 'vUser', 'vDriver', '@user_data', '@user_profile_image'])
+          } catch {}
+          setToken(null)
+          setUser(null)
+          if (navigationRef.isReady()) {
+            navigationRef.reset({ index: 0, routes: [{ name: 'SignIn' }] })
+          }
+        }
+        return Promise.reject(err)
+      }
+    )
+    return () => axios.interceptors.response.eject(id)
+  }, [])
 
   const loadStoredData = async () => {
     try {

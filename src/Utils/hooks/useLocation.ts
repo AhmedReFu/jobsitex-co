@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import * as Location from 'expo-location'
+import { reverseGeocode } from '../geocoding'
 
 export interface LocationCoords {
   latitude: number
@@ -43,66 +44,25 @@ export const useLocation = () => {
     }
   }, [])
 
-  // Get address from coordinates
+  // Get address from coordinates via Google Maps Geocoding API
   const getAddressFromCoordinates = useCallback(async (
-    latitude: number, 
+    latitude: number,
     longitude: number
   ): Promise<string> => {
-    try {
-      const addresses = await Location.reverseGeocodeAsync({
-        latitude,
-        longitude
-      })
-
-      if (addresses.length > 0) {
-        const address = addresses[0]
-        const city = address.city || address.subregion || address.district || address.region || address.name || address.country || 'Unknown'
-        const state = address.region || ''
-        const stateCode = state ? state.substring(0, 2).toUpperCase() : ''
-
-        setLocationAddress({
-          city: city,
-          state: address.region || '',
-          country: address.country || '',
-          formattedAddress: `${city}${stateCode ? ', ' + stateCode : ''}`
-        })
-
-        return `${city}${stateCode ? ', ' + stateCode : ''}`
-      }
-      return 'Unknown Location'
-    } catch {
-      return 'Unknown Location'
+    const result = await reverseGeocode(latitude, longitude)
+    if (result) {
+      setLocationAddress(result)
+      return result.formattedAddress
     }
+    return 'Unknown Location'
   }, [])
 
-  // Get detailed address with all components
+  // Get detailed address with all components via Google Maps Geocoding API
   const getDetailedAddress = useCallback(async (
-    latitude: number, 
+    latitude: number,
     longitude: number
   ): Promise<LocationAddress | null> => {
-    try {
-      const addresses = await Location.reverseGeocodeAsync({
-        latitude,
-        longitude
-      })
-
-      if (addresses.length > 0) {
-        const address = addresses[0]
-        const city = address.city || address.subregion || address.district || address.region || address.name || address.country || 'Unknown'
-        const state = address.region || ''
-        const stateCode = state ? state.substring(0, 2).toUpperCase() : ''
-
-        return {
-          city: city,
-          state: address.region || '',
-          country: address.country || '',
-          formattedAddress: `${city}${stateCode ? ', ' + stateCode : ''}`
-        }
-      }
-      return null
-    } catch {
-      return null
-    }
+    return await reverseGeocode(latitude, longitude)
   }, [])
 
   // Get current location coordinates

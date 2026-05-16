@@ -17,6 +17,7 @@ import DriverJobsDetails from './src/home/Drivers/screens/DriverJobs/DriverJobsD
 import HeadingToPickup from './src/home/Drivers/screens/DriverJobs/HeadingToPickup';
 import JobAssigned from './src/home/Drivers/screens/DriverJobs/JobAssigned';
 import DriverDocuments from './src/home/Drivers/screens/DriverProfile/DriverDocuments';
+import DriverPendingVerification from './src/home/Drivers/screens/DriverProfile/DriverPendingVerification';
 import DriverEarnings from './src/home/Drivers/screens/DriverProfile/DriverEarnings';
 import DriverEditProfile from './src/home/Drivers/screens/DriverProfile/DriverEditProfile';
 import DriverPayout from './src/home/Drivers/screens/DriverProfile/DriverPayout';
@@ -51,122 +52,15 @@ import { UserProvider } from './src/Auth/UserContext';
 import { BookingProvider } from './src/Auth/BookingContext';
 import { ActivityIndicator, View } from 'react-native';
 import UserLiveTracking from './src/home/Users/screens/UserHome/UserLiveTracking';
+import { navigationRef } from './src/Navigation/navigationRef';
 
-const AuthNav = createNativeStackNavigator<AuthStackParamList>();
-const MainNav = createNativeStackNavigator<AuthStackParamList>();
-const OnboardingNav = createNativeStackNavigator<AuthStackParamList>();
+const RootNav = createNativeStackNavigator<AuthStackParamList>();
 
-function AuthStack() {
-  const { isFirstLaunch } = useAuth();
-  const initialRoute = isFirstLaunch ? 'SplashScreen' : 'SignIn';
-  return (
-    <AuthNav.Navigator screenOptions={{ headerShown: false, statusBarStyle: "dark" }} initialRouteName={initialRoute}>
-      <AuthNav.Screen name="SplashScreen" component={SplashScreen} />
-      <AuthNav.Screen name="RoleSelect" component={RoleSelect} />
-      <AuthNav.Screen name="OnBoardingFrist" component={OnBoardingFrist} />
-      <AuthNav.Screen name="SignIn" options={{ animation: "slide_from_left" }} component={SignIn} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="SignUp" component={SignUp} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="OtpAuth" component={OtpAuth} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="ForgotPassword" component={ForgotPassword} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="OtpVerification" component={OtpVerification} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="CreateNewPassword" component={CreateNewPassword} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="LocationPermission" component={LocationPermission} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserMainTabs" component={UserMainTabs} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserEditProfile" component={UserEditProfile} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserNotificationSettings" component={UserNotificationSettings} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserPasswordChange" component={UserPasswordChange} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserProfile" component={UserProfile} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserPrivacyPolicy" component={UserPrivacyPolicy} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserHelpSupport" component={UserHelpSupport} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserActiveJobsDetails" component={UserActiveJobsDetails} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserCompleteJobsDetails" component={UserCompleteJobsDetails} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserRateDriver" component={UserRateDriver} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserNearByTrucks" component={UserNearByTrucks} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserMappingView" component={UserMappingView} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserSetDropOff" component={UserSetDropOff} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserSearchLocation" component={UserSearchLocation} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserScheduleShifting" component={UserScheduleShifting} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserSelectTruck" component={UserSelectTruck} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserOrderDetails" component={UserOrderDetails} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserFindingDrivers" component={UserFindingDrivers} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="UserLiveTracking" component={UserLiveTracking} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="DriverMainTabs" component={DriverMainTabs} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="ProfileSetup" component={ProfileSetup} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="RequiredDocuments" component={RequiredDocuments} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="DriverEditProfile" component={DriverEditProfile} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="VehicleDetails" component={VehicleDetails} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="DriverDocuments" component={DriverDocuments} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="DriverEarnings" component={DriverEarnings} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="DriverPayout" component={DriverPayout} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="DriverJobsDetails" component={DriverJobsDetails} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="DriverJobsComplete" component={DriverJobsComplete} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="JobAssigned" component={JobAssigned} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="HeadingToPickup" component={HeadingToPickup} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="CurrentJob" component={CurrentJob} />
-      <AuthNav.Screen options={{ animation: "slide_from_right" }} name="DriverProfile" component={DriverProfile} />
-    </AuthNav.Navigator>
-  );
-}
-
-function OnboardingStack() {
-  return (
-    <OnboardingNav.Navigator screenOptions={{ headerShown: false, statusBarStyle: "dark" }}>
-      <OnboardingNav.Screen name="RoleSelect" component={RoleSelect} />
-      <OnboardingNav.Screen name="OnBoardingFrist" component={OnBoardingFrist} />
-    </OnboardingNav.Navigator>
-  );
-}
-
-function MainAppStack() {
-  const { user } = useAuth();
-  const initialRoute = user?.role === 'DRIVER' ? 'DriverMainTabs' : 'UserMainTabs';
-  return (
-    <MainNav.Navigator screenOptions={{ headerShown: false, statusBarStyle: "dark" }} initialRouteName={initialRoute as any}>
-      {/* User Screens */}
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserMainTabs" component={UserMainTabs} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserEditProfile" component={UserEditProfile} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserNotificationSettings" component={UserNotificationSettings} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserPasswordChange" component={UserPasswordChange} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserProfile" component={UserProfile} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserPrivacyPolicy" component={UserPrivacyPolicy} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserHelpSupport" component={UserHelpSupport} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserActiveJobsDetails" component={UserActiveJobsDetails} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserCompleteJobsDetails" component={UserCompleteJobsDetails} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserRateDriver" component={UserRateDriver} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserNearByTrucks" component={UserNearByTrucks} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserMappingView" component={UserMappingView} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserSetDropOff" component={UserSetDropOff} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserSearchLocation" component={UserSearchLocation} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserScheduleShifting" component={UserScheduleShifting} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserSelectTruck" component={UserSelectTruck} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserOrderDetails" component={UserOrderDetails} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserFindingDrivers" component={UserFindingDrivers} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="UserLiveTracking" component={UserLiveTracking} />
-
-      {/* Driver Screens */}
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="DriverMainTabs" component={DriverMainTabs} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="DriverEditProfile" component={DriverEditProfile} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="VehicleDetails" component={VehicleDetails} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="DriverDocuments" component={DriverDocuments} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="DriverEarnings" component={DriverEarnings} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="DriverPayout" component={DriverPayout} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="DriverJobsDetails" component={DriverJobsDetails} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="DriverJobsComplete" component={DriverJobsComplete} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="JobAssigned" component={JobAssigned} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="HeadingToPickup" component={HeadingToPickup} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="CurrentJob" component={CurrentJob} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="DriverProfile" component={DriverProfile} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="LocationPermission" component={LocationPermission} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="ProfileSetup" component={ProfileSetup} />
-      <MainNav.Screen options={{ animation: "slide_from_right" }} name="RequiredDocuments" component={RequiredDocuments} />
-    </MainNav.Navigator>
-  );
-}
+const slideRight = { animation: 'slide_from_right' } as const;
 
 function AppNavigation() {
-  const { user, isLoading, isFirstLaunch, hasCompletedOnboarding } = useAuth();
+  const { user, isLoading, isFirstLaunch } = useAuth();
 
-  // Show loading screen while checking auth state
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
@@ -175,31 +69,66 @@ function AppNavigation() {
     );
   }
 
-  // Determine which stack to show
-  const getActiveStack = () => {
-    // User is logged in
-    if (user) {
-      // Check if this is a new user who hasn't completed onboarding
-      if (isFirstLaunch && !hasCompletedOnboarding) {
-        return 'onboarding';
-      }
-      // Existing user - go to main app
-      return 'mainApp';
-    }
+  const initialRoute: keyof AuthStackParamList = user
+    ? (user.role === 'DRIVER' ? 'DriverMainTabs' : 'UserMainTabs')
+    : (isFirstLaunch ? 'SplashScreen' : 'SignIn');
 
-    // User is not logged in
-    return 'auth';
-  };
+  return (
+    <RootNav.Navigator
+      screenOptions={{ headerShown: false, statusBarStyle: 'dark' }}
+      initialRouteName={initialRoute}
+    >
+      {/* ── Onboarding / Auth ─────────────────────────────────────────────── */}
+      <RootNav.Screen name="SplashScreen" component={SplashScreen} />
+      <RootNav.Screen name="RoleSelect" component={RoleSelect} />
+      <RootNav.Screen name="OnBoardingFrist" component={OnBoardingFrist} />
+      <RootNav.Screen name="SignIn" options={{ animation: 'slide_from_left' }} component={SignIn} />
+      <RootNav.Screen name="SignUp" options={slideRight} component={SignUp} />
+      <RootNav.Screen name="OtpAuth" options={slideRight} component={OtpAuth} />
+      <RootNav.Screen name="ForgotPassword" options={slideRight} component={ForgotPassword} />
+      <RootNav.Screen name="OtpVerification" options={slideRight} component={OtpVerification} />
+      <RootNav.Screen name="CreateNewPassword" options={slideRight} component={CreateNewPassword} />
+      <RootNav.Screen name="LocationPermission" options={slideRight} component={LocationPermission} />
+      <RootNav.Screen name="ProfileSetup" options={slideRight} component={ProfileSetup} />
+      <RootNav.Screen name="RequiredDocuments" options={slideRight} component={RequiredDocuments} />
 
-  const activeStack = getActiveStack();
+      {/* ── User Screens ──────────────────────────────────────────────────── */}
+      <RootNav.Screen name="UserMainTabs" options={slideRight} component={UserMainTabs} />
+      <RootNav.Screen name="UserEditProfile" options={slideRight} component={UserEditProfile} />
+      <RootNav.Screen name="UserNotificationSettings" options={slideRight} component={UserNotificationSettings} />
+      <RootNav.Screen name="UserPasswordChange" options={slideRight} component={UserPasswordChange} />
+      <RootNav.Screen name="UserProfile" options={slideRight} component={UserProfile} />
+      <RootNav.Screen name="UserPrivacyPolicy" options={slideRight} component={UserPrivacyPolicy} />
+      <RootNav.Screen name="UserHelpSupport" options={slideRight} component={UserHelpSupport} />
+      <RootNav.Screen name="UserActiveJobsDetails" options={slideRight} component={UserActiveJobsDetails} />
+      <RootNav.Screen name="UserCompleteJobsDetails" options={slideRight} component={UserCompleteJobsDetails} />
+      <RootNav.Screen name="UserRateDriver" options={slideRight} component={UserRateDriver} />
+      <RootNav.Screen name="UserNearByTrucks" options={slideRight} component={UserNearByTrucks} />
+      <RootNav.Screen name="UserMappingView" options={slideRight} component={UserMappingView} />
+      <RootNav.Screen name="UserSetDropOff" options={slideRight} component={UserSetDropOff} />
+      <RootNav.Screen name="UserSearchLocation" options={slideRight} component={UserSearchLocation} />
+      <RootNav.Screen name="UserScheduleShifting" options={slideRight} component={UserScheduleShifting} />
+      <RootNav.Screen name="UserSelectTruck" options={slideRight} component={UserSelectTruck} />
+      <RootNav.Screen name="UserOrderDetails" options={slideRight} component={UserOrderDetails} />
+      <RootNav.Screen name="UserFindingDrivers" options={slideRight} component={UserFindingDrivers} />
+      <RootNav.Screen name="UserLiveTracking" options={slideRight} component={UserLiveTracking} />
 
-  if (activeStack === 'mainApp') {
-    return <MainAppStack />;
-  } else if (activeStack === 'onboarding') {
-    return <OnboardingStack />;
-  } else {
-    return <AuthStack />;
-  }
+      {/* ── Driver Screens ────────────────────────────────────────────────── */}
+      <RootNav.Screen name="DriverMainTabs" options={slideRight} component={DriverMainTabs} />
+      <RootNav.Screen name="DriverEditProfile" options={slideRight} component={DriverEditProfile} />
+      <RootNav.Screen name="VehicleDetails" options={slideRight} component={VehicleDetails} />
+      <RootNav.Screen name="DriverDocuments" options={slideRight} component={DriverDocuments} />
+      <RootNav.Screen name="DriverEarnings" options={slideRight} component={DriverEarnings} />
+      <RootNav.Screen name="DriverPayout" options={slideRight} component={DriverPayout} />
+      <RootNav.Screen name="DriverPendingVerification" options={slideRight} component={DriverPendingVerification} />
+      <RootNav.Screen name="DriverJobsDetails" options={slideRight} component={DriverJobsDetails} />
+      <RootNav.Screen name="DriverJobsComplete" options={slideRight} component={DriverJobsComplete} />
+      <RootNav.Screen name="JobAssigned" options={slideRight} component={JobAssigned} />
+      <RootNav.Screen name="HeadingToPickup" options={slideRight} component={HeadingToPickup} />
+      <RootNav.Screen name="CurrentJob" options={slideRight} component={CurrentJob} />
+      <RootNav.Screen name="DriverProfile" options={slideRight} component={DriverProfile} />
+    </RootNav.Navigator>
+  );
 }
 
 export default function App() {
@@ -207,7 +136,7 @@ export default function App() {
     <AuthProvider>
       <UserProvider>
         <BookingProvider>
-          <NavigationContainer>
+          <NavigationContainer ref={navigationRef}>
             <StatusBar style='dark' />
             <AppNavigation />
           </NavigationContainer>

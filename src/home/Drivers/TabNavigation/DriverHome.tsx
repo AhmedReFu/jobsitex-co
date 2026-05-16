@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native'
 import axios from 'axios'
 import * as Location from 'expo-location'
+import { reverseGeocodeString } from '../../../Utils/geocoding'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
     ActivityIndicator,
@@ -242,6 +243,33 @@ const DriverHome = () => {
         fetchAndSaveDriverDetails()
     }, [fetchAndSaveDriverDetails])
 
+    // ─── Approval guard — redirect if not yet approved ────────────────────────
+
+    useFocusEffect(
+        useCallback(() => {
+            const checkApproval = async () => {
+                try {
+                    const token = await AsyncStorage.getItem('vToken')
+                    if (!token) return
+                    const res = await axios.get(`${API_BASE_URL}${END_POINTS.DRIVER_DETAILS}`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                        timeout: 10000,
+                    })
+                    const d = res.data?.data
+                    if (!d) return
+                    if (!d.isProfileComplete) {
+                        navigation.reset({ index: 0, routes: [{ name: 'ProfileSetup' }] })
+                    } else if (d.driverStatus !== 'APPROVED') {
+                        navigation.reset({ index: 0, routes: [{ name: 'DriverPendingVerification' }] })
+                    }
+                } catch {
+                    // network error — stay on screen; guard will re-run on next focus
+                }
+            }
+            checkApproval()
+        }, [navigation])
+    )
+
     // ─── Rotate animation ─────────────────────────────────────────────────────
 
     useEffect(() => {
@@ -262,20 +290,8 @@ const DriverHome = () => {
 
     // ─── Location Helpers ─────────────────────────────────────────────────────
 
-    const getAddressFromCoordinates = async (latitude: number, longitude: number) => {
-        try {
-            const addresses = await Location.reverseGeocodeAsync({ latitude, longitude })
-            if (addresses.length > 0) {
-                const a = addresses[0]
-                const city = a.city || a.region || a.district || 'Unknown'
-                const stateCode = a.region ? a.region.substring(0, 2).toUpperCase() : ''
-                return `${city}${stateCode ? ', ' + stateCode : ''}`
-            }
-            return 'Unknown Location'
-        } catch {
-            return 'Unknown Location'
-        }
-    }
+    const getAddressFromCoordinates = (latitude: number, longitude: number) =>
+        reverseGeocodeString(latitude, longitude)
 
     const shouldSendLocation = (latitude: number, longitude: number) => {
         const last = lastSentCoordsRef.current
