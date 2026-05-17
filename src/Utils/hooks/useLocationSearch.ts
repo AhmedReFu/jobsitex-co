@@ -1,95 +1,107 @@
-// useLocationSearch.ts - Fixed Timeout type
-import { useState, useCallback, useRef } from 'react'
+import { GOOGLE_MAPS_API_KEY } from '@env'
 import axios from 'axios'
-import { IPA_BASE } from '@env'
+import { useCallback, useRef, useState } from 'react'
+import { SearchSuggestion } from '../../home/Users/Components/SearchLocation/type'
 
-export interface SearchSuggestion {
-  address: string
-  lat: number
-  lng: number
-}
+const GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json'
+const AUTOCOMPLETE_URL = 'https://maps.googleapis.com/maps/api/place/autocomplete/json'
+const DETAILS_URL = 'https://maps.googleapis.com/maps/api/place/details/json'
+
+export { SearchSuggestion }
 
 export const useLocationSearch = () => {
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const searchLocations = useCallback(async (query: string) => {
-    // Clear previous timeout
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current)
-    }
+    if (debounceRef.current) clearTimeout(debounceRef.current)
 
-    // Don't search if query is too short
     if (!query.trim() || query.length < 2) {
       setSuggestions([])
       return
     }
 
-    // Debounce search to avoid too many API calls
-    searchTimeoutRef.current = setTimeout(async () => {
+    debounceRef.current = setTimeout(async () => {
       try {
         setIsLoading(true)
         setError(null)
-        
-        const response = await axios.get(
-          `${IPA_BASE}/driver/suggestions`,
-          {
-            params: { address: query },
-            headers: { 
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            timeout: 10000
-          }
+
+        // Phase 1: Autocomplete — get address descriptions + place IDs
+        const autoRes = await axios.get(AUTOCOMPLETE_URL, {
+          params: {
+            input: query,
+            key: GOOGLE_MAPS_API_KEY,
+            types: 'geocode',
+            language: 'en',
+          },
+          timeout: 10000,
+        })
+
+        const predictions: any[] = autoRes.data?.predictions ?? []
+
+        if (predictions.length === 0) {
+          setSuggestions([])
+          return
+        }
+
+        // Phase 2: Resolve lat/lng for each prediction via Place Details
+        const resolved = await Promise.all(
+          predictions.slice(0, 5).map(async (p: any) => {
+            try {
+              const detailRes = await axios.get(DETAILS_URL, {
+                params: {
+                  place_id: p.place_id,
+                  fields: 'geometry,formatted_address',
+                  key: GOOGLE_MAPS_API_KEY,
+                },
+                timeout: 8000,
+              })
+              const loc = detailRes.data?.result?.geometry?.location
+              const addr =
+                detailRes.data?.result?.formatted_address || p.description
+              if (!loc) return null
+              return { address: addr, lat: loc.lat, lng: loc.lng } as SearchSuggestion
+            } catch {
+              return null
+            }
+          }),
         )
 
-        if (response.data?.success && response.data?.data) {
-          const mappedSuggestions = response.data.data.map((item: any) => ({
-            address: item.address,
-            lat: item.lat,
-            lng: item.lng
-          }))
-          setSuggestions(mappedSuggestions)
-        } else {
-          setSuggestions([])
-          if (response.data?.message) {
-            setError(response.data.message)
-          }
-        }
+        setSuggestions(resolved.filter(Boolean) as SearchSuggestion[])
       } catch (err: any) {
-        console.error('Error searching locations:', err)
-        
-        if (err.code === 'ECONNABORTED') {
-          setError('Request timeout. Please check your internet connection.')
-        } else if (err.response?.status === 404) {
-          setError('Location service not available')
-        } else if (err.response?.status === 500) {
-          setError('Server error. Please try again later.')
-        } else {
-          setError(err.response?.data?.message || 'Failed to search locations')
+        console.error('Location search error:', err?.message)
+        // Fallback: try Geocoding API
+        try {
+          const geoRes = await axios.get(GEOCODE_URL, {
+            params: { address: query, key: GOOGLE_MAPS_API_KEY },
+            timeout: 10000,
+          })
+          const results: SearchSuggestion[] = (geoRes.data?.results ?? [])
+            .slice(0, 5)
+            .map((r: any) => ({
+              address: r.formatted_address,
+              lat: r.geometry.location.lat,
+              lng: r.geometry.location.lng,
+            }))
+          setSuggestions(results)
+          if (results.length === 0) setError('No locations found')
+        } catch {
+          setError('Unable to search locations. Check your internet connection.')
+          setSuggestions([])
         }
-        setSuggestions([])
       } finally {
         setIsLoading(false)
       }
-    }, 500)
+    }, 400)
   }, [])
 
   const clearSuggestions = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
     setSuggestions([])
     setError(null)
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current)
-    }
   }, [])
 
-  return {
-    suggestions,
-    isLoading,
-    error,
-    searchLocations,
-    clearSuggestions
-  }
+  return { suggestions, isLoading, error, searchLocations, clearSuggestions }
 }

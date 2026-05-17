@@ -176,6 +176,7 @@ const UserProfile = () => {
         <SafeAreaView className='flex-1 bg-gray-50' edges={['top']}>
             <ScrollView
                 showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 100 }}
                 refreshControl={
                     <RefreshControl
                         refreshing={isRefreshing}
@@ -384,7 +385,7 @@ const UserProfile = () => {
                 </View>
 
                 {/* Logout Button */}
-                <View className='mx-5 mb-24'>
+                <View className='mx-5 mb-4'>
                     <TouchableOpacity
                         onPress={handleLogout}
                         className='bg-white rounded-2xl py-4 flex-row items-center justify-center border border-gray-100'

@@ -15,10 +15,11 @@ import { Job, Truck } from './types'
 
 interface AllVendorsContentProps {
     activeJobs: Truck[]
-    nearByTrucks: any[]  // This should be the trucks from useNearbyTrucks
+    nearByTrucks: any[]
     recentJobs: Truck[]
     activeJob: Job | null
     isLoading: boolean
+    isRebooking?: boolean
     onSeeAllNearby: () => void
     onSeeAllRecent: () => void
     onTrackPress: () => void
@@ -29,22 +30,23 @@ interface AllVendorsContentProps {
 
 export const AllVendorsContent: React.FC<AllVendorsContentProps> = ({
     activeJobs,
-    nearByTrucks,  // This is from useNearbyTrucks hook
+    nearByTrucks,
     recentJobs,
     activeJob,
     isLoading,
+    isRebooking = false,
     onSeeAllNearby,
     onTrackPress,
     onViewPress,
     onRebookPress,
-    onBookPress
+    onBookPress,
 }) => {
 
     const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
 
     if (isLoading) {
         return (
-            <View className='mb-20'>
+            <View className='mb-4'>
                 <View className='flex-row justify-between items-center mb-4'>
                     <Text className='text-2xl font-bold text-gray-dark'>Nearby Trucks</Text>
                 </View>
@@ -71,7 +73,7 @@ export const AllVendorsContent: React.FC<AllVendorsContentProps> = ({
     }
 
     return (
-        <View className='mb-20'>
+        <View className='mb-4'>
             {/* Nearby Trucks Section */}
             <View className='flex-row justify-between items-center mb-4'>
                 <Text className='text-2xl font-bold text-gray-dark'>Nearby Trucks</Text>
@@ -129,6 +131,7 @@ export const AllVendorsContent: React.FC<AllVendorsContentProps> = ({
                         job={job}
                         onViewPress={() => onViewPress(job.id)}
                         onRebookPress={() => onRebookPress(job.id)}
+                        isRebooking={isRebooking}
                     />
                 ))
             ) : (

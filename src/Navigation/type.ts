@@ -27,7 +27,7 @@ export type AuthStackParamList = {
   };
   UserMappingView: undefined;
   UserSetDropOff: undefined;
-  UserSearchLocation: undefined;
+  UserSearchLocation: { type?: 'pickup' | 'dropoff' } | undefined;
   UserScheduleShifting: undefined;
   UserSelectTruck: undefined;
   UserOrderDetails: undefined;

@@ -45,15 +45,17 @@ const UserDirectBooking = () => {
 
   const [workNote, setWorkNote] = useState('')
   const [booking, setBooking] = useState(false)
-  const initialized = useRef(false)
+  const didSetDefaultPickup = useRef(false)
 
+  // Clear stale booking state once on mount
   useEffect(() => {
-    if (initialized.current) return
-    initialized.current = true
-
     clearLocationData()
+  }, [])
 
-    if (locationCoords) {
+  // Set pickup to current location once coords resolve (may arrive after mount)
+  useEffect(() => {
+    if (locationCoords && !didSetDefaultPickup.current) {
+      didSetDefaultPickup.current = true
       setPickupLocation({
         id: 'current',
         title: 'Current Location',
@@ -62,7 +64,7 @@ const UserDirectBooking = () => {
         longitude: locationCoords.longitude,
       })
     }
-  }, [])
+  }, [locationCoords, currentLocation])
 
   // Fetch route whenever both locations are ready
   useEffect(() => {

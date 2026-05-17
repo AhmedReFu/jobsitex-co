@@ -14,6 +14,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useAuth } from '../../../../Auth/AuthContext'
+import { driverSocketService } from '../../services/driverSocket.service'
 
 type DocumentStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
@@ -81,6 +82,7 @@ const DriverPendingVerification = () => {
                 text: 'Logout',
                 style: 'destructive',
                 onPress: async () => {
+                    driverSocketService.disconnect()
                     await signOut()
                     navigation.reset({ index: 0, routes: [{ name: 'SignIn' }] })
                 },

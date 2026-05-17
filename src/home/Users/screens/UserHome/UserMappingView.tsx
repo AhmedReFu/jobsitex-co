@@ -1,34 +1,34 @@
-// UserMappingView.tsx - Fixed version
-import React, { useState, useEffect, useCallback } from 'react'
+import { IPA_BASE } from '@env'
+import { Entypo, MaterialCommunityIcons } from '@expo/vector-icons'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { NavigationProp, useNavigation, useRoute } from '@react-navigation/native'
+import axios from 'axios'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StatusBar,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Alert
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { NavigationProp, useNavigation, useRoute } from '@react-navigation/native'
-import { Entypo, MaterialCommunityIcons } from '@expo/vector-icons'
+import { useBooking } from '../../../../Auth/BookingContext'
 import { AuthStackParamList } from '../../../../Navigation/type'
 import { useLocation } from '../../../../Utils/hooks/useLocation'
 import { useRouteDirection } from '../../../../Utils/hooks/useRouteDirection'
-import { LocationData } from '../../Components/SearchLocation/type'
 import { RouteMap } from '../../Components/SearchLocation/RouteMap'
-import { useRecentLocations } from '../../../../Utils/hooks/useRecentLocations'
-import { useBooking } from '../../../../Auth/BookingContext'
-
+import { LocationData } from '../../Components/SearchLocation/type'
 
 const UserMappingView = () => {
   const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
   const route = useRoute<any>()
   const { locationCoords, currentLocation, fetchCurrentLocation } = useLocation()
-  const { getRoute, clearRoute } = useRouteDirection()
-  const { saveLocation } = useRecentLocations()
+  const { getRoute } = useRouteDirection()
   const {
     pickupLocation,
     dropoffLocation,
@@ -36,35 +36,44 @@ const UserMappingView = () => {
     setPickupLocation,
     setDropoffLocation,
     setRouteData,
-    clearLocationData
   } = useBooking()
 
   const [isRouteLoading, setIsRouteLoading] = useState(false)
   const [isGettingRoute, setIsGettingRoute] = useState(false)
+  // Track whether we already set the default pickup this session
+  const didSetDefaultPickup = useRef(false)
 
-  // Initialize pickup location from current location
+  // Default pickup to current location when screen first opens
+  // The ref prevents re-overriding after the user changes pickup via search
   useEffect(() => {
-    if (locationCoords && !pickupLocation) {
+    if (locationCoords && !didSetDefaultPickup.current) {
+      didSetDefaultPickup.current = true
       setPickupLocation({
         id: 'current',
         title: 'Current Location',
         address: currentLocation || 'Current Location',
         latitude: locationCoords.latitude,
-        longitude: locationCoords.longitude
+        longitude: locationCoords.longitude,
       })
     }
   }, [locationCoords, currentLocation])
 
-  // Handle dropoff from navigation params (coming from search)
+  // Reset the flag when the screen unmounts so next visit starts fresh
+  useEffect(() => {
+    return () => {
+      didSetDefaultPickup.current = false
+    }
+  }, [])
+
+  // Accept a dropoff injected via nav params (e.g. from rebooking)
   useEffect(() => {
     if (route.params?.dropoffLocation) {
       setDropoffLocation(route.params.dropoffLocation)
-      // Clear previous route data when new dropoff is set
       setRouteData(null)
     }
   }, [route.params?.dropoffLocation])
 
-  // Get route when both locations are available
+  // Auto-fetch route when both locations are set
   useEffect(() => {
     const fetchRoute = async () => {
       if (pickupLocation && dropoffLocation && !routeData && !isGettingRoute) {
@@ -72,11 +81,8 @@ const UserMappingView = () => {
         setIsRouteLoading(true)
         try {
           const result = await getRoute(pickupLocation, dropoffLocation)
-          if (result) {
-            setRouteData(result)
-          }
-        } catch (error) {
-          console.error('Error getting route:', error)
+          if (result) setRouteData(result)
+        } catch {
           Alert.alert('Error', 'Failed to calculate route. Please try again.')
         } finally {
           setIsGettingRoute(false)
@@ -87,23 +93,47 @@ const UserMappingView = () => {
     fetchRoute()
   }, [pickupLocation, dropoffLocation, routeData, getRoute])
 
-  const handlePickupChange = useCallback((location: LocationData) => {
-    setPickupLocation(location)
-    setRouteData(null)
-  }, [setPickupLocation, setRouteData])
+  const handlePickupChange = useCallback(
+    (location: LocationData) => {
+      setPickupLocation(location)
+      setRouteData(null)
+    },
+    [setPickupLocation, setRouteData],
+  )
 
-  const handleDropoffChange = useCallback((location: LocationData) => {
-    setDropoffLocation(location)
-    setRouteData(null)
-  }, [setDropoffLocation, setRouteData])
+  const handleDropoffChange = useCallback(
+    (location: LocationData) => {
+      setDropoffLocation(location)
+      setRouteData(null)
+    },
+    [setDropoffLocation, setRouteData],
+  )
 
-  // UserMappingView.tsx - Update the handleDropoffPress and handlePickupPress
   const handlePickupPress = () => {
-    navigation.navigate('UserSearchLocation', { type: 'pickup' } as any)
+    navigation.navigate('UserSearchLocation', { type: 'pickup' })
   }
 
   const handleDropoffPress = () => {
     navigation.navigate('UserSetDropOff')
+  }
+
+  const handleClearDropoff = () => {
+    setDropoffLocation(null)
+    setRouteData(null)
+  }
+
+  const handleCenterOnCurrentLocation = async () => {
+    await fetchCurrentLocation()
+    if (locationCoords) {
+      setPickupLocation({
+        id: 'current',
+        title: 'Current Location',
+        address: currentLocation || 'Current Location',
+        latitude: locationCoords.latitude,
+        longitude: locationCoords.longitude,
+      })
+      setRouteData(null)
+    }
   }
 
   const handleNextPress = () => {
@@ -119,35 +149,28 @@ const UserMappingView = () => {
       Alert.alert('Please wait', 'Route is still calculating...')
       return
     }
-
     navigation.navigate('UserScheduleShifting')
   }
 
-  const handleCenterOnCurrentLocation = async () => {
-    await fetchCurrentLocation()
-    if (locationCoords) {
-      setPickupLocation({
-        id: 'current',
-        title: 'Current Location',
-        address: currentLocation || 'Current Location',
-        latitude: locationCoords.latitude,
-        longitude: locationCoords.longitude
-      })
-      setRouteData(null)
-    }
-  }
-
-  const handleClearDropoff = () => {
-    setDropoffLocation(null)
-    setRouteData(null)
-  }
+  const canProceed = !!(pickupLocation && dropoffLocation && !isRouteLoading)
 
   return (
-    <SafeAreaView className='flex-1 bg-transparent'>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar barStyle='dark-content' />
 
-      <View className='flex-1'>
-        {/* Map */}
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+          <Entypo name='chevron-left' size={28} color='#111827' />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Select Location</Text>
+        <TouchableOpacity onPress={handleCenterOnCurrentLocation} style={styles.headerBtn}>
+          <MaterialCommunityIcons name='crosshairs-gps' size={24} color='#4CAF50' />
+        </TouchableOpacity>
+      </View>
+
+      {/* Map — fixed height, no overlay issues */}
+      <View style={styles.mapContainer}>
         <RouteMap
           pickup={pickupLocation}
           dropoff={dropoffLocation}
@@ -156,134 +179,183 @@ const UserMappingView = () => {
           onDropoffChange={handleDropoffChange}
           isLoading={isRouteLoading}
         />
-
-        {/* Header */}
-        <View className='absolute top-0 left-0 right-0 flex-row items-center justify-between bg-white px-5 py-4 border-b border-gray-200'>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Entypo name='chevron-left' size={28} color='#000' />
-          </TouchableOpacity>
-          <Text className='text-xl font-bold text-gray-800'>Select Location</Text>
-          <TouchableOpacity onPress={handleCenterOnCurrentLocation}>
-            <MaterialCommunityIcons name='crosshairs-gps' size={24} color='#4CAF50' />
-          </TouchableOpacity>
-        </View>
-
-        {/* Bottom Sheet */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          className='absolute bottom-0 left-0 right-0'
-        >
-          <View className='bg-white rounded-t-3xl px-5 pt-4 pb-8 shadow-lg'>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* PICKUP LOCATION */}
-              <View className='mb-4'>
-                <Text className='mb-2 text-sm font-semibold text-gray-700'>
-                  PICKUP LOCATION
-                </Text>
-                <TouchableOpacity
-                  onPress={handlePickupPress}
-                  className='flex-row items-center rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3'
-                >
-                  <View className='h-8 w-8 rounded-full bg-green-500 items-center justify-center'>
-                    <MaterialCommunityIcons name='circle' size={12} color='white' />
-                  </View>
-                  <View className='ml-3 flex-1'>
-                    <Text className='text-base font-semibold text-gray-800' numberOfLines={1}>
-                      {pickupLocation?.title || 'Select pickup location'}
-                    </Text>
-                    <Text className='text-xs text-gray-500' numberOfLines={1}>
-                      {pickupLocation?.address || 'Tap to select'}
-                    </Text>
-                  </View>
-                  <MaterialCommunityIcons name='chevron-right' size={20} color='#999' />
-                </TouchableOpacity>
-              </View>
-
-              {/* DROP-OFF LOCATION */}
-              <View className='mb-4'>
-                <Text className='mb-2 text-sm font-semibold text-gray-700'>
-                  DROP-OFF LOCATION
-                </Text>
-                <TouchableOpacity
-                  onPress={handleDropoffPress}
-                  className='flex-row items-center rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3'
-                >
-                  <View className='h-8 w-8 rounded-full bg-red-500 items-center justify-center'>
-                    <MaterialCommunityIcons name='flag' size={12} color='white' />
-                  </View>
-                  <View className='ml-3 flex-1'>
-                    <Text className='text-base font-semibold text-gray-800' numberOfLines={1}>
-                      {dropoffLocation?.title || 'Select drop-off location'}
-                    </Text>
-                    <Text className='text-xs text-gray-500' numberOfLines={1}>
-                      {dropoffLocation?.address || 'Tap to select'}
-                    </Text>
-                  </View>
-                  {dropoffLocation ? (
-                    <TouchableOpacity onPress={handleClearDropoff} className='mr-2'>
-                      <MaterialCommunityIcons name='close-circle' size={20} color='#999' />
-                    </TouchableOpacity>
-                  ) : (
-                    <MaterialCommunityIcons name='chevron-right' size={20} color='#999' />
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              {/* Route Info */}
-              {isRouteLoading && (
-                <View className='mb-4 rounded-2xl bg-gray-50 p-4 items-center'>
-                  <ActivityIndicator size="small" color="#4CAF50" />
-                  <Text className='text-sm text-gray-600 mt-2'>Calculating route...</Text>
-                </View>
-              )}
-
-              {routeData && !isRouteLoading && (
-                <View className='mb-4 rounded-2xl bg-green-50 p-4'>
-                  <View className='flex-row justify-between mb-3'>
-                    <View className='flex-row items-center'>
-                      <MaterialCommunityIcons name='map-marker-distance' size={20} color='#4CAF50' />
-                      <Text className='ml-2 text-gray-600'>Distance</Text>
-                    </View>
-                    <Text className='text-lg font-bold text-gray-800'>
-                      {routeData.distance?.toFixed(1)} km
-                    </Text>
-                  </View>
-                  <View className='flex-row justify-between'>
-                    <View className='flex-row items-center'>
-                      <MaterialCommunityIcons name='clock-outline' size={20} color='#4CAF50' />
-                      <Text className='ml-2 text-gray-600'>Duration</Text>
-                    </View>
-                    <Text className='text-lg font-bold text-gray-800'>
-                      {Math.round(routeData.duration)} min
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* NEXT BUTTON */}
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={handleNextPress}
-                disabled={!pickupLocation || !dropoffLocation || isRouteLoading}
-                className={`mb-4 rounded-2xl py-4 ${pickupLocation && dropoffLocation && !isRouteLoading
-                    ? 'bg-green-500'
-                    : 'bg-gray-300'
-                  }`}
-              >
-                <Text className='text-center text-lg font-bold text-white'>
-                  {isRouteLoading ? 'CALCULATING...' : 'NEXT'}
-                </Text>
-              </TouchableOpacity>
-
-              <Text className='text-center text-xs text-gray-400'>
-                Drag markers on map to adjust location
-              </Text>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
       </View>
+
+      {/* Input form — scrollable, below the map */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.formContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps='handled'
+        >
+          {/* Pickup */}
+          <Text style={styles.fieldLabel}>PICKUP LOCATION</Text>
+          <TouchableOpacity onPress={handlePickupPress} style={styles.locationRow}>
+            <View style={[styles.dot, { backgroundColor: '#22C55E' }]}>
+              <MaterialCommunityIcons name='circle' size={10} color='#fff' />
+            </View>
+            <View style={styles.locationText}>
+              <Text style={styles.locationTitle} numberOfLines={1}>
+                {pickupLocation?.title || 'Select pickup location'}
+              </Text>
+              <Text style={styles.locationAddress} numberOfLines={1}>
+                {pickupLocation?.address || 'Tap to select'}
+              </Text>
+            </View>
+            <MaterialCommunityIcons name='chevron-right' size={20} color='#9CA3AF' />
+          </TouchableOpacity>
+
+          {/* Dropoff */}
+          <Text style={[styles.fieldLabel, { marginTop: 14 }]}>DROP-OFF LOCATION</Text>
+          <TouchableOpacity onPress={handleDropoffPress} style={styles.locationRow}>
+            <View style={[styles.dot, { backgroundColor: '#EF4444' }]}>
+              <MaterialCommunityIcons name='flag' size={10} color='#fff' />
+            </View>
+            <View style={styles.locationText}>
+              <Text style={styles.locationTitle} numberOfLines={1}>
+                {dropoffLocation?.title || 'Select drop-off location'}
+              </Text>
+              <Text style={styles.locationAddress} numberOfLines={1}>
+                {dropoffLocation?.address || 'Tap to select'}
+              </Text>
+            </View>
+            {dropoffLocation ? (
+              <TouchableOpacity onPress={handleClearDropoff} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <MaterialCommunityIcons name='close-circle' size={20} color='#9CA3AF' />
+              </TouchableOpacity>
+            ) : (
+              <MaterialCommunityIcons name='chevron-right' size={20} color='#9CA3AF' />
+            )}
+          </TouchableOpacity>
+
+          {/* Route info */}
+          {isRouteLoading && (
+            <View style={styles.routeCard}>
+              <ActivityIndicator size='small' color='#4CAF50' />
+              <Text style={styles.routeLoadingText}>Calculating route…</Text>
+            </View>
+          )}
+
+          {routeData && !isRouteLoading && (
+            <View style={styles.routeCard}>
+              <View style={styles.routeRow}>
+                <View style={styles.routeLeft}>
+                  <MaterialCommunityIcons name='map-marker-distance' size={18} color='#4CAF50' />
+                  <Text style={styles.routeLabel}>Distance</Text>
+                </View>
+                <Text style={styles.routeValue}>{routeData.distance?.toFixed(1)} km</Text>
+              </View>
+              <View style={[styles.routeRow, { marginTop: 10 }]}>
+                <View style={styles.routeLeft}>
+                  <MaterialCommunityIcons name='clock-outline' size={18} color='#4CAF50' />
+                  <Text style={styles.routeLabel}>Duration</Text>
+                </View>
+                <Text style={styles.routeValue}>{Math.round(routeData.duration)} min</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Next */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={handleNextPress}
+            disabled={!canProceed}
+            style={[styles.nextBtn, !canProceed && styles.nextBtnDisabled]}
+          >
+            <Text style={styles.nextBtnText}>
+              {isRouteLoading ? 'CALCULATING…' : 'NEXT'}
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={styles.hint}>Drag markers on map to fine-tune locations</Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   )
 }
 
 export default UserMappingView
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: '#FFFFFF' },
+
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+  },
+  headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
+
+  mapContainer: { height: 220 },
+
+  formContent: { padding: 20, paddingBottom: 40 },
+
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6B7280',
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 1 },
+    }),
+  },
+  dot: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationText: { flex: 1, marginLeft: 12 },
+  locationTitle: { fontSize: 14, fontWeight: '600', color: '#111827' },
+  locationAddress: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+
+  routeCard: {
+    marginTop: 16,
+    borderRadius: 14,
+    backgroundColor: '#F0FDF4',
+    padding: 14,
+    alignItems: 'center',
+  },
+  routeLoadingText: { fontSize: 13, color: '#6B7280', marginTop: 8 },
+  routeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' },
+  routeLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  routeLabel: { fontSize: 14, color: '#6B7280' },
+  routeValue: { fontSize: 15, fontWeight: '700', color: '#111827' },
+
+  nextBtn: {
+    marginTop: 20,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#22C55E',
+  },
+  nextBtnDisabled: { backgroundColor: '#D1D5DB' },
+  nextBtnText: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.4 },
+
+  hint: { marginTop: 12, textAlign: 'center', fontSize: 12, color: '#9CA3AF' },
+})

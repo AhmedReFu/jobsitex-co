@@ -10,6 +10,8 @@ import {
     ActivityIndicator,
     Alert,
     Animated,
+    AppState,
+    AppStateStatus,
     Easing,
     FlatList,
     Image,
@@ -157,7 +159,7 @@ const DriverHome = () => {
 
     const [user, setUser] = useState<SafeUser | null>(null)
     const [driver, setDriver] = useState<SafeDriver | null>(null)
-    const [isOnline, setIsOnline] = useState(true)
+    const [isOnline, setIsOnline] = useState(false)
     const [currentLocation, setCurrentLocation] = useState<string>('Loading...')
     const [isLoadingLocation, setIsLoadingLocation] = useState(true)
     const [showLocationModal, setShowLocationModal] = useState(false)
@@ -233,6 +235,8 @@ const DriverHome = () => {
             }
 
             setDriver(safeDriver)
+            // Sync toggle with actual server state on every app open
+            setIsOnline(safeDriver.isAvailable)
             await AsyncStorage.setItem('vDriver', JSON.stringify(safeDriver))
         } catch {
             // non-critical; cached value still displayed
@@ -476,6 +480,26 @@ const DriverHome = () => {
             mounted = false
         }
     }, [isOnline, selectedRadius])
+
+    // ─── AppState: mark driver offline when app is backgrounded/killed ───────
+    //
+    //  Covers controlled exits (home button, task switcher). Crashes/network
+    //  drops are handled by the backend socket disconnect handler (see NestJS
+    //  gateway handleDisconnect → set isAvailable=false for DRIVER role).
+    //
+
+    useEffect(() => {
+        const handleAppStateChange = async (nextState: AppStateStatus) => {
+            if (nextState === 'background' || nextState === 'inactive') {
+                setIsOnline(false)
+                driverSocketService.unsubscribeJobs()
+                await updateDriverStatus('inactive')
+            }
+        }
+
+        const subscription = AppState.addEventListener('change', handleAppStateChange)
+        return () => subscription.remove()
+    }, [updateDriverStatus])
 
     // ─── Socket: listen for new jobs in real time ─────────────────────────────
 

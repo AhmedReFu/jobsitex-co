@@ -1,9 +1,10 @@
-import { IPA_BASE } from '@env'
+import { IPA_BASE, STATUS_DRIVER } from '@env'
 import { FontAwesome, FontAwesome6, Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native'
 import axios from 'axios'
 import React, { useCallback, useState } from 'react'
+import { driverSocketService } from '../services/driverSocket.service'
 import {
   Alert,
   Image,
@@ -62,8 +63,22 @@ const DriverProfile = () => {
         text: 'Logout',
         style: 'destructive',
         onPress: async () => {
-          await signOut()
-          navigation.reset({ index: 0, routes: [{ name: 'SignIn' }] })
+          try {
+            const token = await AsyncStorage.getItem('vToken')
+            if (token) {
+              await axios.patch(
+                `${IPA_BASE}${STATUS_DRIVER}`,
+                { isAvailable: false },
+                { headers: { Authorization: `Bearer ${token}` }, timeout: 5000 },
+              )
+            }
+          } catch {
+            // non-critical — backend socket disconnect handler is the safety net
+          } finally {
+            driverSocketService.disconnect()
+            await signOut()
+            navigation.reset({ index: 0, routes: [{ name: 'SignIn' }] })
+          }
         },
       },
     ])
@@ -82,7 +97,7 @@ const DriverProfile = () => {
         <Text className='text-2xl font-bold text-gray-900'>My Profile</Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} className='mx-5'>
+      <ScrollView showsVerticalScrollIndicator={false} className='mx-5' contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Profile Image Section */}
         <View className='items-center mb-6'>
           <View className='relative'>
@@ -189,7 +204,7 @@ const DriverProfile = () => {
         </View>
 
         {/* Logout Button */}
-        <View className='mb-28'>
+        <View className='mb-4'>
           <TouchableOpacity
             onPress={handleLogout}
             className='bg-white rounded-2xl py-5 flex-row items-center justify-center border border-gray-100'

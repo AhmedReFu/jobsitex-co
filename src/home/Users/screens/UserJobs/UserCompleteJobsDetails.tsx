@@ -7,7 +7,6 @@ import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AuthStackParamList } from '../../../../Navigation/type'
-import { useLocation } from '../../../../Utils/hooks/useLocation'
 
 type JobDetail = {
   id: string
@@ -37,12 +36,9 @@ export default function UserCompleteJobsDetails() {
   const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
   const route = useRoute<any>()
   const jobId: string = route.params?.jobId ?? ''
-  const { locationCoords } = useLocation()
-
   const [job, setJob] = useState<JobDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [rebooking, setRebooking] = useState(false)
 
   useEffect(() => {
     const fetchJob = async () => {
@@ -84,45 +80,18 @@ export default function UserCompleteJobsDetails() {
     )
   }
 
-  const handleRebook = async () => {
+  const handleRebook = () => {
     if (!job.driver?.user?.id || !job.truckType?.id) {
       Alert.alert('Rebook', 'Driver information is unavailable for rebooking.')
       return
     }
-    try {
-      setRebooking(true)
-      const token = await AsyncStorage.getItem('vToken')
-      const params: Record<string, any> = {
-        truckTypeId: job.truckType.id,
-        radiusKm: 30,
-      }
-      if (locationCoords) {
-        params.lat = locationCoords.latitude
-        params.lng = locationCoords.longitude
-      }
-      const res = await axios.get(`${IPA_BASE}/jobs/nearby-drivers`, {
-        params,
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 15000,
-      })
-      const drivers: any[] = res.data?.data ?? []
-      const found = drivers.find((d) => d.user?.id === job.driver!.user.id)
-      if (found) {
-        navigation.navigate('UserDirectBooking', {
-          driverUserId: job.driver.user.id,
-          truckTypeId: job.truckType.id,
-          truckName: job.truckType.name,
-          driverName: job.driver.user.fullName,
-          driverAvatar: job.driver.user.avatar,
-        })
-      } else {
-        Alert.alert('Driver Unavailable', 'This driver is not available in your area or is not active right now.')
-      }
-    } catch {
-      Alert.alert('Error', 'Could not check driver availability. Please try again.')
-    } finally {
-      setRebooking(false)
-    }
+    navigation.navigate('UserDirectBooking', {
+      driverUserId: job.driver.user.id,
+      truckTypeId: job.truckType.id,
+      truckName: job.truckType.name,
+      driverName: job.driver.user.fullName,
+      driverAvatar: job.driver.user.avatar,
+    })
   }
 
   const fare = job.estimatedFare ?? 0
@@ -247,18 +216,11 @@ export default function UserCompleteJobsDetails() {
           )}
           <TouchableOpacity
             activeOpacity={0.9}
-            disabled={rebooking}
-            style={[styles.rebookBtn, !job.review ? { flex: 1 } : { flex: 1 }]}
+            style={[styles.rebookBtn, { flex: 1 }]}
             onPress={handleRebook}
           >
-            {rebooking ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <>
-                <Ionicons name='refresh' size={18} color='#fff' />
-                <Text style={styles.reviewText}>REBOOK</Text>
-              </>
-            )}
+            <Ionicons name='refresh' size={18} color='#fff' />
+            <Text style={styles.reviewText}>REBOOK</Text>
           </TouchableOpacity>
         </View>
       </View>
