@@ -36,6 +36,7 @@ const DriverTruck = () => {
 
   useFocusEffect(
     useCallback(() => {
+      let cancelled = false
       const load = async () => {
         try {
           const token = await AsyncStorage.getItem('vToken')
@@ -45,14 +46,20 @@ const DriverTruck = () => {
           })
           const jobs: ActiveJob[] = res.data?.data ?? []
           const active = jobs.find((j) => ACTIVE_STATUSES.has(j.status)) ?? null
-          setJob(active)
+          if (cancelled) return
+          if (active) {
+            navigation.navigate('HeadingToPickup', { jobId: active.id })
+            return
+          }
+          setJob(null)
         } catch (err) {
           console.error('DriverTruck load error:', err)
         } finally {
-          setLoading(false)
+          if (!cancelled) setLoading(false)
         }
       }
       load()
+      return () => { cancelled = true }
     }, [])
   )
 

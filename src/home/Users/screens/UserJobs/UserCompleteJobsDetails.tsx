@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { NavigationProp, useNavigation, useRoute } from '@react-navigation/native'
 import axios from 'axios'
 import React, { useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AuthStackParamList } from '../../../../Navigation/type'
 
@@ -78,20 +78,6 @@ export default function UserCompleteJobsDetails() {
         </View>
       </SafeAreaView>
     )
-  }
-
-  const handleRebook = () => {
-    if (!job.driver?.user?.id || !job.truckType?.id) {
-      Alert.alert('Rebook', 'Driver information is unavailable for rebooking.')
-      return
-    }
-    navigation.navigate('UserDirectBooking', {
-      driverUserId: job.driver.user.id,
-      truckTypeId: job.truckType.id,
-      truckName: job.truckType.name,
-      driverName: job.driver.user.fullName,
-      driverAvatar: job.driver.user.avatar,
-    })
   }
 
   const fare = job.estimatedFare ?? 0
@@ -202,28 +188,18 @@ export default function UserCompleteJobsDetails() {
       </ScrollView>
 
       {/* Bottom Sticky Buttons */}
-      <View style={styles.bottomBar}>
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          {!job.review && (
-            <TouchableOpacity
-              activeOpacity={0.9}
-              style={[styles.reviewBtn, { flex: 1 }]}
-              onPress={() => navigation.navigate('UserRateDriver', { jobId: job.id })}
-            >
-              <Ionicons name='star-outline' size={18} color='#fff' />
-              <Text style={styles.reviewText}>RATE</Text>
-            </TouchableOpacity>
-          )}
+      {!job.review && (
+        <View style={styles.bottomBar}>
           <TouchableOpacity
             activeOpacity={0.9}
-            style={[styles.rebookBtn, { flex: 1 }]}
-            onPress={handleRebook}
+            style={styles.reviewBtn}
+            onPress={() => navigation.navigate('UserRateDriver', { jobId: job.id })}
           >
-            <Ionicons name='refresh' size={18} color='#fff' />
-            <Text style={styles.reviewText}>REBOOK</Text>
+            <Ionicons name='star-outline' size={18} color='#fff' />
+            <Text style={styles.reviewText}>RATE DRIVER</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      )}
     </SafeAreaView>
   )
 }
@@ -318,6 +294,5 @@ const styles = StyleSheet.create({
     }),
   },
   reviewBtn: { height: 54, borderRadius: 16, backgroundColor: GREEN, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  rebookBtn: { height: 54, borderRadius: 16, backgroundColor: '#F59E0B', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   reviewText: { color: '#fff', fontWeight: '900', letterSpacing: 0.6 },
 })

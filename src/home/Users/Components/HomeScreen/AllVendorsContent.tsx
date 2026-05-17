@@ -19,12 +19,10 @@ interface AllVendorsContentProps {
     recentJobs: Truck[]
     activeJob: Job | null
     isLoading: boolean
-    isRebooking?: boolean
     onSeeAllNearby: () => void
     onSeeAllRecent: () => void
     onTrackPress: () => void
     onViewPress: (jobId: string) => void
-    onRebookPress: (jobId: string) => void
     onBookPress: (truckId: string) => void
 }
 
@@ -34,11 +32,9 @@ export const AllVendorsContent: React.FC<AllVendorsContentProps> = ({
     recentJobs,
     activeJob,
     isLoading,
-    isRebooking = false,
     onSeeAllNearby,
     onTrackPress,
     onViewPress,
-    onRebookPress,
     onBookPress,
 }) => {
 
@@ -130,8 +126,6 @@ export const AllVendorsContent: React.FC<AllVendorsContentProps> = ({
                         key={job.id}
                         job={job}
                         onViewPress={() => onViewPress(job.id)}
-                        onRebookPress={() => onRebookPress(job.id)}
-                        isRebooking={isRebooking}
                     />
                 ))
             ) : (

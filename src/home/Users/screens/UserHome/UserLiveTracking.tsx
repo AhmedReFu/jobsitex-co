@@ -402,7 +402,6 @@ const UserLiveTracking = () => {
                 coordinates={pts}
                 strokeColor='#FFA500'
                 strokeWidth={4}
-                lineDashPattern={[10, 10]}
               />
             )
           })()}

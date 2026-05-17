@@ -52,10 +52,14 @@ const DriverDocuments = () => {
 
                     const items: DocItem[] = REQUIRED_DOCS.map((type) => {
                         const doc = docMap.get(type)
+                        const rawStatus = doc ? (doc.status as DocStatus) : 'MISSING'
+                        // When account is approved, all submitted docs are effectively verified
+                        const status: DocStatus =
+                            data?.driverStatus === 'APPROVED' && rawStatus !== 'MISSING' ? 'APPROVED' : rawStatus
                         return {
                             type,
                             label: DOC_LABELS[type] ?? type,
-                            status: doc ? (doc.status as DocStatus) : 'MISSING',
+                            status,
                             rejectionReason: doc?.rejectionReason,
                         }
                     })

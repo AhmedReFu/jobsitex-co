@@ -143,11 +143,12 @@ const RequiredDocuments = () => {
       uploadOptions.forEach((item) => {
         const file = images[item.key]
         if (file) {
-          formData.append(FIELD_NAME[item.key], {
-            uri: file.uri,
-            name: file.name,
-            type: file.type,
-          } as any)
+          const fileBlob = { uri: file.uri, name: file.name, type: file.type } as any
+          formData.append(FIELD_NAME[item.key], fileBlob)
+          // Also send truck photo as truckPhotoMain so the backend stores the display URL
+          if (item.key === 'truck') {
+            formData.append('truckPhotoMain', fileBlob)
+          }
         }
       })
 

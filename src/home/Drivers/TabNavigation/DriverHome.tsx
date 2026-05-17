@@ -455,15 +455,39 @@ const DriverHome = () => {
         }
     }, [fetchCurrentLocation, startWatchingLocation])
 
-    // ─── Socket: connect + subscribe/unsubscribe based on online status ───────
+    // ─── Socket: connect + subscribe/unsubscribe + listen for new jobs ───────
+    //
+    // onJobNew is registered AFTER connect() resolves so the socket instance
+    // exists. Registering it in a separate [] effect causes a race where the
+    // socket is still null when socket?.on() is called.
+    //
 
     useEffect(() => {
         let mounted = true
+
+        const handleNewJob = (data: JobNewData) => {
+            setJobs((prev) => {
+                if (prev.some((j) => j.id === data.jobId)) return prev
+                const newCard: JobCardData = {
+                    id: data.jobId,
+                    jobId: data.jobId,
+                    vehicleType: data.truckType,
+                    status: 'pending',
+                    pickupAddress: data.pickupAddress,
+                    dropAddress: data.dropoffAddress,
+                    distance: data.distanceKm,
+                    duration: 0,
+                    fare: data.estimatedFare,
+                }
+                return [newCard, ...prev]
+            })
+        }
 
         const connectAndSubscribe = async () => {
             try {
                 await driverSocketService.connect()
                 if (!mounted) return
+                driverSocketService.onJobNew(handleNewJob)
                 if (isOnline) {
                     driverSocketService.subscribeJobs(selectedRadius)
                 } else {
@@ -478,6 +502,7 @@ const DriverHome = () => {
 
         return () => {
             mounted = false
+            driverSocketService.offJobNew(handleNewJob)
         }
     }, [isOnline, selectedRadius])
 
@@ -500,33 +525,6 @@ const DriverHome = () => {
         const subscription = AppState.addEventListener('change', handleAppStateChange)
         return () => subscription.remove()
     }, [updateDriverStatus])
-
-    // ─── Socket: listen for new jobs in real time ─────────────────────────────
-
-    useEffect(() => {
-        const handleNewJob = (data: JobNewData) => {
-            const newCard: JobCardData = {
-                id: data.jobId,
-                jobId: data.jobId,
-                vehicleType: data.truckType,
-                status: 'pending',
-                pickupAddress: data.pickupAddress,
-                dropAddress: data.dropoffAddress,
-                distance: data.distanceKm,
-                duration: 0,
-                fare: data.estimatedFare,
-            }
-            setJobs((prev) => {
-                if (prev.some((j) => j.id === data.jobId)) return prev
-                return [newCard, ...prev]
-            })
-        }
-
-        driverSocketService.onJobNew(handleNewJob)
-        return () => {
-            driverSocketService.offJobNew(handleNewJob)
-        }
-    }, [])
 
     useFocusEffect(
         useCallback(() => {

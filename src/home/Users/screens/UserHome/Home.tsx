@@ -1,7 +1,4 @@
-import { IPA_BASE } from '@env'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native'
-import axios from 'axios'
 import React, { useCallback, useMemo, useState } from 'react'
 import {
   Alert,
@@ -28,7 +25,6 @@ const Home = () => {
   const { fetchUserProfile } = useUser()
   const [showLocationModal, setShowLocationModal] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [isRebooking, setIsRebooking] = useState(false)
 
   const {
     currentLocation,
@@ -110,39 +106,6 @@ const Home = () => {
     }
   }, [locationCoords, fetchCurrentLocation, refreshTrucks, refetchJobs])
 
-  const handleRebookPress = useCallback(
-    async (jobId: string) => {
-      if (isRebooking) return
-      try {
-        setIsRebooking(true)
-        const token = await AsyncStorage.getItem('vToken')
-
-        const jobRes = await axios.get(`${IPA_BASE}/jobs/${jobId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-          timeout: 10000,
-        })
-        const job = jobRes.data?.data
-
-        if (!job?.driver?.user?.id || !job?.truckType?.id) {
-          navigation.navigate('UserMappingView')
-          return
-        }
-
-        navigation.navigate('UserDirectBooking', {
-          driverUserId: job.driver.user.id,
-          truckTypeId: job.truckType.id,
-          truckName: job.truckType.name,
-          driverName: job.driver.user.fullName,
-          driverAvatar: job.driver.user.avatar,
-        })
-      } catch {
-        navigation.navigate('UserMappingView')
-      } finally {
-        setIsRebooking(false)
-      }
-    },
-    [isRebooking, navigation],
-  )
 
   const isLoading = jobsLoading || trucksLoading
 
@@ -190,14 +153,12 @@ const Home = () => {
             recentJobs={recentJobs}
             activeJob={activeJob}
             isLoading={isLoading}
-            isRebooking={isRebooking}
             onSeeAllNearby={() => navigation.navigate('UserNearByTrucks')}
             onBookPress={(truckId) => (navigation as any).navigate('UserMappingView', { truckId })}
             onTrackPress={() => {
               if (activeJob?.id) navigation.navigate('UserLiveTracking', { jobId: activeJob.id })
             }}
             onViewPress={(jobId) => navigation.navigate('UserCompleteJobsDetails', { jobId })}
-            onRebookPress={handleRebookPress}
             onSeeAllRecent={() => {}}
           />
         </ScrollView>
