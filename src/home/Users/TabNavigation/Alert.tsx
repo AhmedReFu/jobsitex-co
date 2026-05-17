@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { socketService } from '../services/socket.service'
 
+
 type ApiNotification = {
     id: string
     type: string
@@ -25,12 +26,16 @@ type ApiNotification = {
 }
 
 const TYPE_ICON: Record<string, { icon: string; color: string }> = {
-    JOB_OFFER: { icon: 'briefcase', color: '#26A201' },
-    JOB_ACCEPTED: { icon: 'checkmark-circle', color: '#22C55E' },
-    JOB_CANCELLED: { icon: 'close-circle', color: '#EF4444' },
-    PAYMENT: { icon: 'cash', color: '#3B82F6' },
-    SYSTEM: { icon: 'information-circle', color: '#8B5CF6' },
-    DEFAULT: { icon: 'notifications', color: '#9CA3AF' },
+    JOB_BROADCAST:        { icon: 'megaphone',              color: '#F59E0B' },
+    JOB_ACCEPTED:         { icon: 'checkmark-circle',       color: '#22C55E' },
+    JOB_STATUS_UPDATE:    { icon: 'refresh-circle',         color: '#3B82F6' },
+    DRIVER_APPROVED:      { icon: 'shield-checkmark',       color: '#10B981' },
+    DRIVER_REJECTED:      { icon: 'shield-outline',         color: '#EF4444' },
+    PAYMENT_RECEIVED:     { icon: 'cash',                   color: '#3B82F6' },
+    DOCUMENT_APPROVED:    { icon: 'document-text',          color: '#10B981' },
+    DOCUMENT_REJECTED:    { icon: 'document-text-outline',  color: '#EF4444' },
+    WITHDRAWAL_PROCESSED: { icon: 'wallet',                 color: '#8B5CF6' },
+    DEFAULT:              { icon: 'notifications',          color: '#9CA3AF' },
 }
 
 const formatTime = (iso: string) => {
@@ -58,7 +63,7 @@ const Alert = () => {
                 params: { limit: 50 },
                 timeout: 10000,
             })
-            setNotifications(res.data?.data ?? [])
+            setNotifications(res.data?.data?.notifications ?? [])
         } catch (err) {
             console.error('Alert load error:', err)
         } finally {
@@ -91,6 +96,19 @@ const Alert = () => {
             setNotifications((prev) =>
                 prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
             )
+        } catch {
+            // non-critical
+        }
+    }
+
+    const markAllRead = async () => {
+        try {
+            const token = await AsyncStorage.getItem('vToken')
+            await axios.post(`${IPA_BASE}/user/notifications/read-all`, {}, {
+                headers: { Authorization: `Bearer ${token}` },
+                timeout: 5000,
+            })
+            setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })))
         } catch {
             // non-critical
         }
@@ -137,8 +155,13 @@ const Alert = () => {
 
     return (
         <SafeAreaView className='flex-1 bg-gray-50' edges={['top']}>
-            <View className='px-5 py-4'>
+            <View className='px-5 py-4 flex-row items-center justify-between'>
                 <Text className='text-2xl font-bold text-gray-900'>Alerts</Text>
+                {notifications.some((n) => !n.isRead) && (
+                    <TouchableOpacity onPress={markAllRead}>
+                        <Text className='text-sm font-semibold text-green-600'>Mark all read</Text>
+                    </TouchableOpacity>
+                )}
             </View>
 
             <FlatList

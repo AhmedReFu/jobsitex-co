@@ -119,7 +119,7 @@ export const AllVendorsContent: React.FC<AllVendorsContentProps> = ({
 
             {/* Recent Jobs Section */}
 
-
+            <Text className='text-2xl font-bold text-gray-dark mb-4'>Recent Jobs</Text>
             {recentJobs && recentJobs.length > 0 ? (
                 recentJobs.slice(0, 3).map((job) => (  // Show only first 3 recent jobs
                     <RecentJobCard

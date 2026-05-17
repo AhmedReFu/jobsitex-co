@@ -16,6 +16,7 @@ type DriverProfile = {
   driverStatus: string
   truckType: { name: string; description: string | null } | null
   truckPhotoUrl: string | null
+  documents: Array<{ type: string; fileUrl: string }> | null
 }
 
 const VehicleDetails = () => {
@@ -64,11 +65,17 @@ const VehicleDetails = () => {
         {/* Truck Image Card */}
         <View className='mx-4 mt-6 mb-6'>
           <View className='rounded-3xl items-center justify-center bg-blue-300' style={{ elevation: 4, height: 280 }}>
-            {profile?.truckPhotoUrl ? (
-              <Image source={{ uri: profile.truckPhotoUrl }} className='w-full h-full rounded-3xl' resizeMode='cover' />
-            ) : (
-              <Image source={Images.Car3} className='w-56 h-36' resizeMode='contain' />
-            )}
+            {(() => {
+              const photoUri =
+                profile?.truckPhotoUrl ||
+                profile?.documents?.find((d) => d.type === 'TRUCK_PHOTO')?.fileUrl ||
+                null
+              return photoUri ? (
+                <Image source={{ uri: photoUri }} className='w-full h-full rounded-3xl' resizeMode='cover' />
+              ) : (
+                <Image source={Images.Car3} className='w-56 h-36' resizeMode='contain' />
+              )
+            })()}
           </View>
         </View>
 

@@ -1,8 +1,19 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-
+import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import "./global.css";
+
+// Show notifications while app is in foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 import CreateNewPassword from './src/Auth/CreateNewPassword';
 import ForgotPassword from './src/Auth/ForgotPassword';
 import OtpAuth from './src/Auth/OtpAuth';
@@ -11,7 +22,6 @@ import SignIn from './src/Auth/SignIn';
 import SignUp from './src/Auth/SignUp';
 import ProfileSetup from './src/home/Drivers/ProfileSetup/ProfileSetup';
 import RequiredDocuments from './src/home/Drivers/ProfileSetup/RequiredDocuments';
-import CurrentJob from './src/home/Drivers/screens/DriverJobs/CurrentJob';
 import DriverJobsComplete from './src/home/Drivers/screens/DriverJobs/DriverJobsComplete';
 import DriverJobsDetails from './src/home/Drivers/screens/DriverJobs/DriverJobsDetails';
 import HeadingToPickup from './src/home/Drivers/screens/DriverJobs/HeadingToPickup';
@@ -54,12 +64,44 @@ import { ActivityIndicator, View } from 'react-native';
 import UserLiveTracking from './src/home/Users/screens/UserHome/UserLiveTracking';
 import { navigationRef } from './src/Navigation/navigationRef';
 
+// Android 8+ requires a notification channel to be created before push can appear
+if (Platform.OS === 'android') {
+  Notifications.setNotificationChannelAsync('default', {
+    name: 'Default',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#4CAF50',
+  });
+}
+
 const RootNav = createNativeStackNavigator<AuthStackParamList>();
 
 const slideRight = { animation: 'slide_from_right' } as const;
 
 function AppNavigation() {
   const { user, isLoading, isFirstLaunch } = useAuth();
+
+  // Deep-link into the app when the user taps a push notification
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as Record<string, any>;
+      const type: string = data?.type ?? '';
+      const jobId: string | undefined = data?.jobId;
+
+      if (!navigationRef.isReady()) return;
+
+      if ((type === 'JOB_ACCEPTED' || type === 'JOB_STATUS_UPDATE') && jobId) {
+        navigationRef.navigate('UserActiveJobsDetails', { jobId });
+      } else if (type === 'PAYMENT_RECEIVED' && jobId) {
+        navigationRef.navigate('UserCompleteJobsDetails', { jobId });
+      } else if (type === 'DRIVER_APPROVED' || type === 'JOB_BROADCAST') {
+        navigationRef.navigate('DriverMainTabs');
+      } else if (type === 'DOCUMENT_APPROVED' || type === 'DOCUMENT_REJECTED' || type === 'DRIVER_REJECTED') {
+        navigationRef.navigate('DriverDocuments');
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   if (isLoading) {
     return (
@@ -125,7 +167,6 @@ function AppNavigation() {
       <RootNav.Screen name="DriverJobsComplete" options={slideRight} component={DriverJobsComplete} />
       <RootNav.Screen name="JobAssigned" options={slideRight} component={JobAssigned} />
       <RootNav.Screen name="HeadingToPickup" options={slideRight} component={HeadingToPickup} />
-      <RootNav.Screen name="CurrentJob" options={slideRight} component={CurrentJob} />
       <RootNav.Screen name="DriverProfile" options={slideRight} component={DriverProfile} />
     </RootNav.Navigator>
   );

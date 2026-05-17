@@ -90,9 +90,6 @@ export type AuthStackParamList = {
   HeadingToPickup: {
     jobId: string;
   };
-  CurrentJob: {
-    jobId: string;
-  };
   DriverPayout: undefined;
   DriverPendingVerification: undefined;
   VehicleDetails: undefined;

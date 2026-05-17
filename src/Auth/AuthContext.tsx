@@ -1,7 +1,32 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import Constants from 'expo-constants';
+import * as Notifications from 'expo-notifications';
+import { IPA_BASE } from '@env';
 import { navigationRef } from '../Navigation/navigationRef';
+
+async function registerPushToken(authToken: string) {
+  try {
+    const { status: existing } = await Notifications.getPermissionsAsync();
+    let finalStatus = existing;
+    if (existing !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== 'granted') return;
+    const projectId: string | undefined = Constants.expoConfig?.extra?.eas?.projectId;
+    const { data: expoPushToken } = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    );
+    await axios.post(`${IPA_BASE}/user/fcm-token`, { fcmToken: expoPushToken }, {
+      headers: { Authorization: `Bearer ${authToken}` },
+      timeout: 5000,
+    });
+  } catch {
+    // non-critical — push notifications degrade gracefully
+  }
+}
 
 interface User {
   id: string;
@@ -98,6 +123,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
         setHasCompletedOnboardingState(onboardingCompleted === 'true');
+        registerPushToken(storedToken);
       }
     } catch (error) {
       console.error('Error loading stored data:', error);
@@ -112,6 +138,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await AsyncStorage.setItem('vUser', JSON.stringify(userData));
       setToken(authToken);
       setUser(userData);
+      registerPushToken(authToken);
     } catch (error) {
       console.error('Error signing in:', error);
       throw error;

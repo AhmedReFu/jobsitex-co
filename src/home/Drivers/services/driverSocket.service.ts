@@ -26,6 +26,15 @@ export interface LocationPayload {
   speed?: number
 }
 
+export interface NotificationData {
+  id: string
+  type: string
+  title: string
+  message: string
+  data: Record<string, unknown>
+  createdAt: string
+}
+
 class DriverSocketService {
   private socket: Socket | null = null
   private isConnected = false
@@ -116,6 +125,14 @@ class DriverSocketService {
 
   offJobDirectOffer(callback: (data: JobDirectOfferData) => void) {
     this.socket?.off('job:direct-offer', callback)
+  }
+
+  onNotification(callback: (data: NotificationData) => void) {
+    this.socket?.on('notification', callback)
+  }
+
+  offNotification(callback: (data: NotificationData) => void) {
+    this.socket?.off('notification', callback)
   }
 
   disconnect() {

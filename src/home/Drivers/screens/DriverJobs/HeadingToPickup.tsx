@@ -34,7 +34,6 @@ import { driverSocketService } from '../../services/driverSocket.service';
 const API_BASE_URL = IPA_BASE;
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ARRIVED_RADIUS_METERS = 50;
-const DROPOFF_RADIUS_METERS = 50;
 const LOCATION_UPDATE_INTERVAL_MS = 5000;
 
 type JobApiResponse = {
@@ -114,8 +113,6 @@ const HeadingToPickup = () => {
     const [distanceToPickup, setDistanceToPickup] = useState<number | null>(null);
     const [distanceToDropoff, setDistanceToDropoff] = useState<number | null>(null);
     const [isNearPickup, setIsNearPickup] = useState(false);
-    const [isNearDropoff, setIsNearDropoff] = useState(false);
-    const [hasReachedDropoff, setHasReachedDropoff] = useState(false);
     const [routeProgress, setRouteProgress] = useState(0);
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [eta, setEta] = useState<number | null>(null);
@@ -130,7 +127,7 @@ const HeadingToPickup = () => {
     }, [ridePhase]);
 
     useEffect(() => {
-        if (!isNearPickup && !isNearDropoff) return;
+        if (!isNearPickup) return;
         const anim = Animated.loop(
             Animated.sequence([
                 Animated.timing(pulseAnim, { toValue: 1.06, duration: 600, useNativeDriver: true }),
@@ -139,7 +136,7 @@ const HeadingToPickup = () => {
         );
         anim.start();
         return () => anim.stop();
-    }, [isNearPickup, isNearDropoff]);
+    }, [isNearPickup]);
 
     const getCurrentLocation = async () => {
         try {
@@ -188,10 +185,6 @@ const HeadingToPickup = () => {
         );
         const dist = getDistanceMeters(current.latitude, current.longitude, drop.latitude, drop.longitude);
         setDistanceToDropoff(dist);
-        const nearNow = dist <= DROPOFF_RADIUS_METERS;
-        if (nearNow) setHasReachedDropoff(true);
-        // Once driver has reached dropoff radius, always allow completion
-        setIsNearDropoff((prev) => prev || nearNow);
         setDropoffEta(Math.round((dist / 1000 / 30) * 60));
     };
 
@@ -357,14 +350,6 @@ const HeadingToPickup = () => {
     };
 
     const handleCompleteRide = async () => {
-        if (!isNearDropoff && !hasReachedDropoff) {
-            toast.show({
-                message: `You are ${Math.round(distanceToDropoff || 0)}m away. Get within 50m to complete.`,
-                type: 'warning',
-                style: 'top',
-            });
-            return;
-        }
         setIsActionLoading(true);
         try {
             // LOADED → IN_TRANSIT
@@ -544,14 +529,6 @@ const HeadingToPickup = () => {
                             </View>
                         </View>
                     )}
-                    {isNearDropoff && (ridePhase === 'ride_started' || ridePhase === 'heading_to_dropoff') && (
-                        <View className="absolute bottom-4 left-0 right-0 items-center">
-                            <View className="bg-green-500 rounded-full px-5 py-2 flex-row items-center gap-2" style={{ elevation: 4 }}>
-                                <MaterialCommunityIcons name="map-marker-check" size={18} color="white" />
-                                <Text className="text-white font-bold text-sm">You're at dropoff!</Text>
-                            </View>
-                        </View>
-                    )}
                 </View>
 
                 {/* Bottom Sheet */}
@@ -664,23 +641,21 @@ const HeadingToPickup = () => {
                     )}
 
                     {isShowCompleteButton && (
-                        <Animated.View style={{ transform: [{ scale: isNearDropoff || hasReachedDropoff ? pulseAnim : 1 }] }} className="mb-20">
+                        <View className="mb-20">
                             <TouchableOpacity
                                 onPress={handleCompleteRide}
                                 disabled={isActionLoading}
                                 className="rounded-2xl py-4 items-center justify-center"
-                                style={{ backgroundColor: isNearDropoff || hasReachedDropoff ? '#10B981' : '#D1FAE5' }}
+                                style={{ backgroundColor: '#10B981' }}
                             >
                                 {isActionLoading ? <ActivityIndicator size="small" color="white" /> : (
                                     <View className="flex-row items-center gap-2">
-                                        <MaterialCommunityIcons name="check-circle" size={22} color={isNearDropoff || hasReachedDropoff ? 'white' : '#6EE7B7'} />
-                                        <Text className="font-bold text-lg" style={{ color: isNearDropoff || hasReachedDropoff ? 'white' : '#6EE7B7' }}>
-                                            {isNearDropoff || hasReachedDropoff ? 'COMPLETE RIDE' : `${getDistanceDisplay()} to dropoff`}
-                                        </Text>
+                                        <MaterialCommunityIcons name="check-circle" size={22} color="white" />
+                                        <Text className="font-bold text-lg" style={{ color: 'white' }}>COMPLETE RIDE</Text>
                                     </View>
                                 )}
                             </TouchableOpacity>
-                        </Animated.View>
+                        </View>
                     )}
                 </ScrollView>
             </View>

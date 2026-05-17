@@ -1,7 +1,11 @@
+import { IPA_BASE } from "@env";
 import { FontAwesome5, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import React from "react";
+import axios from "axios";
+import React, { useEffect, useState } from "react";
 import { Platform, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { socketService } from "../../Users/services/socket.service";
 import DriverAlert from "./DriverAlert";
 import DriverHome from "./DriverHome";
 import DriverJobs from "./DriverJobs";
@@ -19,6 +23,26 @@ function CenterButton({ children, onPress }: any) {
 }
 
 export default function DriverMainTabs() {
+    const [badgeCount, setBadgeCount] = useState(0)
+
+    useEffect(() => {
+        AsyncStorage.getItem('vToken').then((token) => {
+            if (!token) return
+            axios.get(`${IPA_BASE}/user/notifications`, {
+                headers: { Authorization: `Bearer ${token}` },
+                params: { limit: 50 },
+                timeout: 8000,
+            }).then((res) => {
+                const notifs: any[] = res.data?.data?.notifications ?? []
+                setBadgeCount(notifs.filter((n: any) => !n.isRead).length)
+            }).catch(() => {})
+        })
+
+        const handleNew = () => setBadgeCount((prev) => prev + 1)
+        socketService.connect().then(() => socketService.onNotification(handleNew))
+        return () => socketService.offNotification(handleNew)
+    }, [])
+
     return (
         <Tab.Navigator
             screenOptions={{
@@ -85,7 +109,9 @@ export default function DriverMainTabs() {
             <Tab.Screen
                 name="Alerts"
                 component={DriverAlert}
+                listeners={{ tabPress: () => setBadgeCount(0) }}
                 options={{
+                    tabBarBadge: badgeCount > 0 ? badgeCount : undefined,
                     tabBarIcon: ({ focused }) => (
                         <View style={styles.tabItem}>
                             <Ionicons

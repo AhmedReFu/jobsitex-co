@@ -1,9 +1,13 @@
+import { IPA_BASE } from "@env";
 import { FontAwesome5, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useNavigation, NavigationProp } from "@react-navigation/native";
-import React from "react";
+import axios from "axios";
+import React, { useEffect, useState } from "react";
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { AuthStackParamList } from "../../../Navigation/type";
+import { socketService } from "../services/socket.service";
 import Home from "../screens/UserHome/Home";
 import Alert from "./Alert";
 import Jobs from "./Jobs";
@@ -21,6 +25,27 @@ function CenterButton({ children, onPress }: any) {
 
 export default function UserMainTabs() {
     const navigation = useNavigation<NavigationProp<AuthStackParamList>>()
+    const [badgeCount, setBadgeCount] = useState(0)
+
+    useEffect(() => {
+        // Fetch initial unread count
+        AsyncStorage.getItem('vToken').then((token) => {
+            if (!token) return
+            axios.get(`${IPA_BASE}/user/notifications`, {
+                headers: { Authorization: `Bearer ${token}` },
+                params: { limit: 50 },
+                timeout: 8000,
+            }).then((res) => {
+                const notifs: any[] = res.data?.data?.notifications ?? []
+                setBadgeCount(notifs.filter((n: any) => !n.isRead).length)
+            }).catch(() => {})
+        })
+
+        // Increment badge when a new notification arrives via socket
+        const handleNew = () => setBadgeCount((prev) => prev + 1)
+        socketService.connect().then(() => socketService.onNotification(handleNew))
+        return () => socketService.offNotification(handleNew)
+    }, [])
 
     return (
         <Tab.Navigator
@@ -91,7 +116,9 @@ export default function UserMainTabs() {
             <Tab.Screen
                 name="Alerts"
                 component={Alert}
+                listeners={{ tabPress: () => setBadgeCount(0) }}
                 options={{
+                    tabBarBadge: badgeCount > 0 ? badgeCount : undefined,
                     tabBarIcon: ({ focused }) => (
                         <View style={styles.tabItem}>
                             <Ionicons
