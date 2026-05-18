@@ -162,7 +162,7 @@ const RequiredDocuments = () => {
 
       if (res.data?.success === true) {
         toast.show({ message: 'Documents submitted! Your profile is under review.', type: 'success', style: 'top' })
-        navigation.navigate('SignIn')
+        navigation.reset({ index: 0, routes: [{ name: 'DriverPendingVerification' as any }] })
       } else {
         toast.show({ message: res.data?.message || 'Upload failed', type: 'error', style: 'top' })
       }

@@ -12,7 +12,7 @@ import {
     View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { socketService } from '../services/socket.service'
+import { socketService, NotificationData } from '../services/socket.service'
 
 
 type ApiNotification = {
@@ -75,8 +75,8 @@ const Alert = () => {
     useEffect(() => {
         load()
 
-        const handleNotification = (data: ApiNotification) => {
-            setNotifications((prev) => [data, ...prev])
+        const handleNotification = (data: NotificationData) => {
+            setNotifications((prev) => [{ ...data, isRead: false }, ...prev])
         }
         socketService.connect().then(() => {
             socketService.onNotification(handleNotification)

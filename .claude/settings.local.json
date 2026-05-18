@@ -14,7 +14,13 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\ruhul\\\\Desktop\\\\STA Projects\\\\jobsitex-co\\\\src\" -Recurse -Filter \"*Auth*\" -ErrorAction SilentlyContinue)",
       "Bash(Select-Object FullName)",
       "Bash(git fetch *)",
-      "Bash(find C:\\\\Users\\\\ruhul\\\\Desktop\\\\STA Projects\\\\jobsitex_backend *)"
+      "Bash(find C:\\\\Users\\\\ruhul\\\\Desktop\\\\STA Projects\\\\jobsitex_backend *)",
+      "Bash(dir \"C:\\\\Users\\\\ruhul\\\\Desktop\\\\STA Projects\\\\jobsitex-co\\\\ios\")",
+      "Bash(xargs grep -l \"google\\\\|apple\\\\|Google\\\\|Apple\")",
+      "Bash(npx expo *)",
+      "Bash(xargs grep -l \"useRef\\\\|PanResponder\\\\|Animated\\\\|FlatList\\\\|KeyboardAvoidingView\")",
+      "Bash(Select-String -Pattern \"^android$|^ios$\")",
+      "Bash(./gradlew signingReport)"
     ]
   }
 }

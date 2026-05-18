@@ -1,9 +1,12 @@
 import { IP_FIND, IPA_BASE, REGISTER } from '@env';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { NavigationProp, useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { googleSignIn, appleSignIn, type SocialRole } from './socialAuth';
+import RoleSelectionModal from '../Components/RoleSelectionModal';
+import { useAuth } from './AuthContext';
 import {
     Animated,
     Dimensions,
@@ -247,9 +250,11 @@ const CountryPickerComponent: React.FC<CountryPickerProps> = ({
 /* ------------------ Screen ------------------ */
 const SignUp = () => {
     const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
-    const route = useRoute<any>();
     const toast = useToast();
+    const { signIn } = useAuth();
     const [type, setType] = useState<'CUSTOMER' | 'DRIVER'>('CUSTOMER');
+    const [socialLoading, setSocialLoading] = useState(false);
+    const [pendingProvider, setPendingProvider] = useState<'google' | 'apple' | null>(null);
     const swipeAnim = useRef(new Animated.Value(0)).current;
 
     const [number, setNumber] = useState('');
@@ -458,8 +463,42 @@ const SignUp = () => {
         (navigation as any).replace('SignIn', { type });
     };
 
-    const handleGoogleSignUp = () => toast.show({ message: 'Google Sign Up coming soon', type: 'info', style: 'top' })
-    const handleAppleSignUp = () => toast.show({ message: 'Apple Sign Up coming soon', type: 'info', style: 'top' })
+    const handleRoleSelect = async (role: SocialRole) => {
+        const provider = pendingProvider;
+        setPendingProvider(null);
+        setType(role === 'DRIVER' ? 'DRIVER' : 'CUSTOMER');
+        setSocialLoading(true);
+        try {
+            const result = provider === 'google'
+                ? await googleSignIn(role)
+                : await appleSignIn(role);
+            if (!result) return;
+            await signIn(result.user as any, result.accessToken);
+
+            if (result.user.role === 'DRIVER') {
+                let dest = 'ProfileSetup';
+                try {
+                    const profileRes = await axios.get(`${API_BASE_URL}/driver/profile`, {
+                        headers: { Authorization: `Bearer ${result.accessToken}` },
+                        timeout: 10000,
+                    });
+                    const profile = profileRes.data?.data;
+                    if (profile?.isProfileComplete && profile?.driverStatus === 'APPROVED') dest = 'DriverMainTabs';
+                    else if (profile?.isProfileComplete) dest = 'DriverPendingVerification';
+                } catch { /* fall through to ProfileSetup */ }
+                navigation.reset({ index: 0, routes: [{ name: dest as any }] });
+            } else {
+                navigation.reset({ index: 0, routes: [{ name: 'UserMainTabs' as any }] });
+            }
+        } catch (e: any) {
+            const code = e?.code ?? '';
+            if (code !== 'SIGN_IN_CANCELLED' && code !== 'IN_PROGRESS' && code !== 'ERR_REQUEST_CANCELED') {
+                toast.show({ message: e?.response?.data?.message ?? e?.message ?? 'Sign-up failed', type: 'error', style: 'top' });
+            }
+        } finally {
+            setSocialLoading(false);
+        }
+    };
 
     return (
         <SafeAreaView className="flex-1 bg-gray-50">
@@ -619,20 +658,24 @@ const SignUp = () => {
 
                 <View className="flex-row justify-center gap-4">
                     <TouchableOpacity
-                        onPress={handleGoogleSignUp}
+                        onPress={() => setPendingProvider('google')}
+                        disabled={socialLoading || isLoading}
                         className="bg-white border border-gray-200 rounded-2xl px-6 py-4 flex-row items-center justify-center flex-1"
                         activeOpacity={0.8}
                     >
                         <GoogleButtonSvg />
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                        onPress={handleAppleSignUp}
-                        className="bg-white border border-gray-200 rounded-2xl px-6 py-4 flex-row items-center justify-center flex-1"
-                        activeOpacity={0.8}
-                    >
-                        <AppleButtonSvg />
-                    </TouchableOpacity>
+                    {Platform.OS === 'ios' && (
+                        <TouchableOpacity
+                            onPress={() => setPendingProvider('apple')}
+                            disabled={socialLoading || isLoading}
+                            className="bg-white border border-gray-200 rounded-2xl px-6 py-4 flex-row items-center justify-center flex-1"
+                            activeOpacity={0.8}
+                        >
+                            <AppleButtonSvg />
+                        </TouchableOpacity>
+                    )}
                 </View>
             </ScrollView>
 
@@ -641,6 +684,12 @@ const SignUp = () => {
                 onClose={() => setShowCountryPicker(false)}
                 onSelect={handleCountrySelect}
                 selectedCountry={selectedCountry}
+            />
+
+            <RoleSelectionModal
+                visible={pendingProvider !== null}
+                onSelect={handleRoleSelect}
+                onCancel={() => setPendingProvider(null)}
             />
 
             <Toast

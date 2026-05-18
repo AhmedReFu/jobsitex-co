@@ -6,16 +6,15 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "assetBundlePatterns": ["**/*"],
-
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.AhmedReFu.JOBSITEX",
-
       "config": {
         "googleMapsApiKey": "AIzaSyCB3G-ob1C6JEUF_wotuQY1RMPKIbRkPIw"
       },
-
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We need your location to find nearby jobs and drivers.",
         "NSLocationAlwaysUsageDescription": "We need your location to track delivery routes and job locations.",
@@ -29,21 +28,19 @@
         "ITSAppUsesNonExemptEncryption": false
       }
     },
-
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.AhmedReFu.JOBSITEX",
-
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyCB3G-ob1C6JEUF_wotuQY1RMPKIbRkPIw"
         }
       },
-
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
@@ -58,12 +55,19 @@
         "android.permission.RECORD_AUDIO"
       ]
     },
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
+    "scheme": "jobsitex",
     "plugins": [
+      "./plugins/withGoogleServicesJson",
+      "expo-apple-authentication",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.335149546838-k4i1locg3rro8nbtrmlgl5h6ribsb66s"
+        }
+      ],
       "expo-font",
       [
         "expo-location",
@@ -91,11 +95,11 @@
         }
       ]
     ],
-
     "extra": {
       "eas": {
-        "projectId": "02c7f450-9e0d-4a96-a8e6-9bf62d265012"
+        "projectId": "d9e06a04-deaf-4074-acb5-47a3f065ca3f"
       }
-    }
+    },
+    "owner": "jobsitex"
   }
 }

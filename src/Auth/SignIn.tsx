@@ -7,11 +7,14 @@ import React, { useState } from 'react'
 import { useAuth } from '../Auth/AuthContext'
 import {
     Image,
+    Platform,
     Text,
     TextInput,
     TouchableOpacity,
     View
 } from 'react-native'
+import { googleSignIn, appleSignIn, type SocialRole } from './socialAuth'
+import RoleSelectionModal from '../Components/RoleSelectionModal'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AppleButtonSvg from '../Components/Apple'
 import GoogleButtonSvg from '../Components/Google'
@@ -42,6 +45,8 @@ const SignIn = () => {
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
     const [loading, setLoading] = useState(false)
+    const [socialLoading, setSocialLoading] = useState(false)
+    const [pendingProvider, setPendingProvider] = useState<'google' | 'apple' | null>(null)
 
     const handleSignIn = async () => {
         if (!email.trim() || !password) {
@@ -186,6 +191,21 @@ const SignIn = () => {
         }
     }
 
+    const navigateAfterSignIn = async (role: string, accessToken: string) => {
+        let dest: string = role === 'DRIVER' ? 'DriverMainTabs' : 'UserMainTabs'
+        if (role === 'DRIVER') {
+            try {
+                const profileRes = await axios.get(`${IPA_BASE}/driver/profile`, {
+                    headers: { Authorization: `Bearer ${accessToken}` }, timeout: 10000,
+                })
+                const profile = profileRes.data?.data
+                if (!profile?.isProfileComplete) dest = 'ProfileSetup'
+                else if (profile?.driverStatus !== 'APPROVED') dest = 'DriverPendingVerification'
+            } catch {}
+        }
+        setTimeout(() => navigation.reset({ index: 0, routes: [{ name: dest as any }] }), 300)
+    }
+
     const handleForgotPassword = () => {
         (navigation as any).navigate('ForgotPassword')
     }
@@ -194,20 +214,29 @@ const SignIn = () => {
         (navigation as any).replace('SignUp')
     }
 
-    const handleGoogleSignIn = () => {
-        toast.show({
-            message: 'Google Sign In coming soon',
-            type: 'info',
-            style: 'top',
-        })
-    }
-
-    const handleAppleSignIn = () => {
-        toast.show({
-            message: 'Apple Sign In coming soon',
-            type: 'info',
-            style: 'top',
-        })
+    const handleRoleSelect = async (role: SocialRole) => {
+        const provider = pendingProvider
+        setPendingProvider(null)
+        setSocialLoading(true)
+        try {
+            if (provider === 'google') {
+                const result = await googleSignIn(role)
+                await signIn(result.user as any, result.accessToken)
+                navigateAfterSignIn(result.user.role, result.accessToken)
+            } else if (provider === 'apple') {
+                const result = await appleSignIn(role)
+                if (!result) return
+                await signIn(result.user as any, result.accessToken)
+                navigateAfterSignIn(result.user.role, result.accessToken)
+            }
+        } catch (e: any) {
+            const code = e?.code ?? ''
+            if (code !== 'SIGN_IN_CANCELLED' && code !== 'IN_PROGRESS' && code !== 'ERR_REQUEST_CANCELED') {
+                toast.show({ message: e?.response?.data?.message ?? e?.message ?? 'Sign-in failed', type: 'error', style: 'top' })
+            }
+        } finally {
+            setSocialLoading(false)
+        }
     }
 
     return (
@@ -300,21 +329,31 @@ const SignIn = () => {
                 {/* Social Buttons */}
                 <View className='flex-row justify-center gap-4'>
                     <TouchableOpacity
-                        onPress={handleGoogleSignIn}
+                        onPress={() => setPendingProvider('google')}
+                        disabled={socialLoading || loading}
                         className='bg-white border border-gray-200 rounded-2xl px-6 py-4 flex-row items-center justify-center flex-1'
                         activeOpacity={0.8}
                     >
                         <GoogleButtonSvg />
                     </TouchableOpacity>
-                    <TouchableOpacity
-                        onPress={handleAppleSignIn}
-                        className='bg-white border border-gray-200 rounded-2xl px-6 py-4 flex-row items-center justify-center flex-1'
-                        activeOpacity={0.8}
-                    >
-                        <AppleButtonSvg />
-                    </TouchableOpacity>
+                    {Platform.OS === 'ios' && (
+                        <TouchableOpacity
+                            onPress={() => setPendingProvider('apple')}
+                            disabled={socialLoading || loading}
+                            className='bg-white border border-gray-200 rounded-2xl px-6 py-4 flex-row items-center justify-center flex-1'
+                            activeOpacity={0.8}
+                        >
+                            <AppleButtonSvg />
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
+
+            <RoleSelectionModal
+                visible={pendingProvider !== null}
+                onSelect={handleRoleSelect}
+                onCancel={() => setPendingProvider(null)}
+            />
 
             {/* ✅ Toast Component - Must be at the end */}
             <Toast
