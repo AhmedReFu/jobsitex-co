@@ -253,7 +253,7 @@ const SignIn = () => {
                     Welcome Back!
                 </Text>
                 <Text className='text-lg text-gray-medium mb-6'>
-                    Hey! Good to see you again
+                    Hey! Good to see you again da
                 </Text>
 
                 {/* Email */}
