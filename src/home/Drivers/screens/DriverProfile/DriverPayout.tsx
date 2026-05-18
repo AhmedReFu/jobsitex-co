@@ -28,6 +28,8 @@ const DriverPayout = () => {
   const [loading, setLoading] = useState(true)
   const [connectingStripe, setConnectingStripe] = useState(false)
 
+  const isStripeConnected = !!profile?.stripeAccountId && !!profile?.stripeOnboardingComplete
+
   useEffect(() => {
     fetchData()
   }, [])
@@ -54,23 +56,47 @@ const DriverPayout = () => {
     }
   }
 
+  // Refresh when the screen regains focus (e.g. returning from Stripe onboarding)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', fetchData)
+    return unsubscribe
+  }, [navigation])
+
   const handleConnectStripe = async () => {
     try {
       setConnectingStripe(true)
       const token = await AsyncStorage.getItem('vToken')
-      const res = await axios.post(`${IPA_BASE}/driver/stripe/onboarding-link`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 15000,
-      })
+
+      let res
+      if (isStripeConnected) {
+        // Already onboarded — open Stripe Express dashboard
+        res = await axios.post(`${IPA_BASE}/driver/stripe/login-link`, {}, {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 15000,
+        })
+      } else {
+        // Not yet onboarded — start / resume onboarding
+        res = await axios.post(
+          `${IPA_BASE}/driver/stripe/onboarding-link`,
+          {
+            returnUrl: 'jobsitex://stripe/success',
+            refreshUrl: 'jobsitex://stripe/refresh',
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            timeout: 15000,
+          },
+        )
+      }
+
       const url: string = res.data?.data?.url ?? res.data?.data?.onboardingUrl ?? ''
       if (url) {
         await Linking.openURL(url)
-        await fetchData()
       } else {
-        Alert.alert('Error', 'Could not get Stripe onboarding link.')
+        Alert.alert('Error', 'Could not get Stripe link.')
       }
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.message || 'Failed to connect Stripe account.')
+      Alert.alert('Error', err?.response?.data?.message || 'Failed to open Stripe.')
     } finally {
       setConnectingStripe(false)
     }
@@ -83,8 +109,6 @@ const DriverPayout = () => {
       </SafeAreaView>
     )
   }
-
-  const isStripeConnected = !!profile?.stripeAccountId && profile?.stripeOnboardingComplete
 
   return (
     <SafeAreaView className='flex-1' edges={['top']}>

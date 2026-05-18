@@ -102,7 +102,7 @@ const RequiredDocuments = () => {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        quality: 0.8,
+        quality: 0.4,
       })
 
       if (result.canceled) return

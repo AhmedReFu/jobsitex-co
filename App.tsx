@@ -1,5 +1,6 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -102,6 +103,31 @@ function AppNavigation() {
         navigationRef.navigate('DriverDocuments');
       }
     });
+    return () => sub.remove();
+  }, []);
+
+  // Handle Stripe onboarding deep links (jobsitex://stripe/success | refresh)
+  useEffect(() => {
+    const handleUrl = (url: string) => {
+      const parsed = Linking.parse(url);
+      if (parsed.hostname !== 'stripe') return;
+      if (!navigationRef.isReady()) return;
+
+      if (parsed.path === 'success') {
+        navigationRef.navigate('DriverPayout');
+      } else if (parsed.path === 'refresh') {
+        navigationRef.navigate('DriverPayout');
+      }
+    };
+
+    // App already open — Stripe browser tab returns to app
+    const sub = Linking.addEventListener('url', (event) => handleUrl(event.url));
+
+    // App launched cold from the deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) handleUrl(url);
+    });
+
     return () => sub.remove();
   }, []);
 

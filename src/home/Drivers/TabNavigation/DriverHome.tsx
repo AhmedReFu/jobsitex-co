@@ -156,6 +156,7 @@ const DriverHome = () => {
     const rotateAnim = useRef(new Animated.Value(0)).current
     const locationWatcherRef = useRef<Location.LocationSubscription | null>(null)
     const lastSentCoordsRef = useRef<{ latitude: number; longitude: number } | null>(null)
+    const isFirstStatusSyncRef = useRef(true)
 
     const [user, setUser] = useState<SafeUser | null>(null)
     const [driver, setDriver] = useState<SafeDriver | null>(null)
@@ -526,14 +527,11 @@ const DriverHome = () => {
         return () => subscription.remove()
     }, [updateDriverStatus])
 
-    useFocusEffect(
-        useCallback(() => {
-            updateDriverStatus(isOnline ? 'active' : 'inactive')
-            if (isOnline) fetchCurrentLocation()
-        }, [isOnline, updateDriverStatus, fetchCurrentLocation])
-    )
-
     useEffect(() => {
+        if (isFirstStatusSyncRef.current) {
+            isFirstStatusSyncRef.current = false
+            return
+        }
         updateDriverStatus(isOnline ? 'active' : 'inactive')
     }, [isOnline, updateDriverStatus])
 

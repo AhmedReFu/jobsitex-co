@@ -61,6 +61,12 @@
     "scheme": "jobsitex",
     "plugins": [
       "./plugins/withGoogleServicesJson",
+      [
+        "react-native-maps",
+        {
+          "iosGoogleMapsApiKey": "AIzaSyCB3G-ob1C6JEUF_wotuQY1RMPKIbRkPIw"
+        }
+      ],
       "expo-apple-authentication",
       [
         "@react-native-google-signin/google-signin",

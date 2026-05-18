@@ -81,7 +81,8 @@ const DriverEditProfile = () => {
             const token = await AsyncStorage.getItem('vToken')
             const formData = new FormData()
             formData.append('fullName', fullName.trim())
-            if (phone.trim()) formData.append('mobileNumber', phone.trim())
+            const cleanPhone = phone.trim().replace(/[\s\-\(\)\.]/g, '')
+            if (cleanPhone) formData.append('mobileNumber', cleanPhone)
             if (newImageAsset) {
                 const filename = newImageAsset.uri.split('/').pop() ?? 'avatar.jpg'
                 const type = newImageAsset.mimeType ?? 'image/jpeg'

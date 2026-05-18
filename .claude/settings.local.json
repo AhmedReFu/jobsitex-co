@@ -20,7 +20,9 @@
       "Bash(npx expo *)",
       "Bash(xargs grep -l \"useRef\\\\|PanResponder\\\\|Animated\\\\|FlatList\\\\|KeyboardAvoidingView\")",
       "Bash(Select-String -Pattern \"^android$|^ios$\")",
-      "Bash(./gradlew signingReport)"
+      "Bash(./gradlew signingReport)",
+      "Bash(findstr \"react-native-maps\")",
+      "Bash(xargs ls)"
     ]
   }
 }
