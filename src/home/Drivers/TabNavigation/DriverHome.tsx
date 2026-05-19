@@ -161,6 +161,9 @@ const DriverHome = () => {
     const [user, setUser] = useState<SafeUser | null>(null)
     const [driver, setDriver] = useState<SafeDriver | null>(null)
     const [isOnline, setIsOnline] = useState(false)
+    const isOnlineRef = useRef(false)
+    const locationCoordsRef = useRef<{ latitude: number; longitude: number } | null>(null)
+    const fetchNearbyJobsRef = useRef<typeof fetchNearbyJobs | null>(null)
     const [currentLocation, setCurrentLocation] = useState<string>('Loading...')
     const [isLoadingLocation, setIsLoadingLocation] = useState(true)
     const [showLocationModal, setShowLocationModal] = useState(false)
@@ -177,6 +180,10 @@ const DriverHome = () => {
     const [jobsError, setJobsError] = useState<string | null>(null)
 
     const getToken = async () => AsyncStorage.getItem('vToken')
+
+    // Keep refs in sync so callbacks can read latest values without causing re-renders
+    useEffect(() => { isOnlineRef.current = isOnline }, [isOnline])
+    useEffect(() => { locationCoordsRef.current = locationCoords }, [locationCoords])
 
     // ─── Load vUser ───────────────────────────────────────────────────────────
 
@@ -338,6 +345,8 @@ const DriverHome = () => {
         [selectedRadius]
     )
 
+    useEffect(() => { fetchNearbyJobsRef.current = fetchNearbyJobs }, [fetchNearbyJobs])
+
     // ─── Radius Change ────────────────────────────────────────────────────────
 
     const handleRadiusChange = async (radius: number) => {
@@ -401,7 +410,7 @@ const DriverHome = () => {
             setCurrentLocation(address)
             setLocationCoords({ latitude, longitude })
 
-            if (isOnline) {
+            if (isOnlineRef.current) {
                 await updateDriverLocation(latitude, longitude)
                 lastSentCoordsRef.current = { latitude, longitude }
                 await fetchNearbyJobs(latitude, longitude)
@@ -413,7 +422,7 @@ const DriverHome = () => {
         } finally {
             setIsLoadingLocation(false)
         }
-    }, [isOnline, updateDriverLocation, fetchNearbyJobs])
+    }, [updateDriverLocation, fetchNearbyJobs])
 
     const startWatchingLocation = useCallback(async () => {
         try {
@@ -434,7 +443,7 @@ const DriverHome = () => {
                     setLocationCoords({ latitude, longitude })
                     const address = await getAddressFromCoordinates(latitude, longitude)
                     setCurrentLocation(address)
-                    if (isOnline && shouldSendLocation(latitude, longitude)) {
+                    if (isOnlineRef.current && shouldSendLocation(latitude, longitude)) {
                         await updateDriverLocation(latitude, longitude)
                         lastSentCoordsRef.current = { latitude, longitude }
                     }
@@ -443,7 +452,7 @@ const DriverHome = () => {
         } catch (error) {
             console.error('Error watching location:', error)
         }
-    }, [isOnline, updateDriverLocation])
+    }, [updateDriverLocation])
 
     // ─── Effects ──────────────────────────────────────────────────────────────
 
@@ -516,7 +525,9 @@ const DriverHome = () => {
 
     useEffect(() => {
         const handleAppStateChange = async (nextState: AppStateStatus) => {
-            if (nextState === 'background' || nextState === 'inactive') {
+            // Only go offline when truly backgrounded — not on 'inactive' which fires
+            // during system dialogs (location permission, notifications, etc.)
+            if (nextState === 'background') {
                 setIsOnline(false)
                 driverSocketService.unsubscribeJobs()
                 await updateDriverStatus('inactive')
@@ -533,6 +544,13 @@ const DriverHome = () => {
             return
         }
         updateDriverStatus(isOnline ? 'active' : 'inactive')
+        if (isOnline) {
+            // Fetch jobs immediately when going online using latest coords + jobs fn via refs
+            const coords = locationCoordsRef.current
+            if (coords) fetchNearbyJobsRef.current?.(coords.latitude, coords.longitude)
+        } else {
+            setJobs([])
+        }
     }, [isOnline, updateDriverStatus])
 
     // ─── Handlers ─────────────────────────────────────────────────────────────

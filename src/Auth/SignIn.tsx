@@ -13,7 +13,14 @@ import {
     TouchableOpacity,
     View
 } from 'react-native'
-import { googleSignIn, appleSignIn, type SocialRole } from './socialAuth'
+import {
+    getGoogleIdToken,
+    googleSignInWithIdToken,
+    getAppleCredential,
+    appleSignInWithCredential,
+    type SocialRole,
+    type PendingCredential,
+} from './socialAuth'
 import RoleSelectionModal from '../Components/RoleSelectionModal'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import AppleButtonSvg from '../Components/Apple'
@@ -47,6 +54,7 @@ const SignIn = () => {
     const [loading, setLoading] = useState(false)
     const [socialLoading, setSocialLoading] = useState(false)
     const [pendingProvider, setPendingProvider] = useState<'google' | 'apple' | null>(null)
+    const pendingCredential = React.useRef<PendingCredential | null>(null)
 
     const handleSignIn = async () => {
         if (!email.trim() || !password) {
@@ -214,26 +222,70 @@ const SignIn = () => {
         (navigation as any).replace('SignUp')
     }
 
-    const handleRoleSelect = async (role: SocialRole) => {
-        const provider = pendingProvider
-        setPendingProvider(null)
+    const handleSocialSignIn = async (provider: 'google' | 'apple') => {
         setSocialLoading(true)
         try {
+            let result
             if (provider === 'google') {
-                const result = await googleSignIn(role)
-                await signIn(result.user as any, result.accessToken)
-                navigateAfterSignIn(result.user.role, result.accessToken)
-            } else if (provider === 'apple') {
-                const result = await appleSignIn(role)
-                if (!result) return
-                await signIn(result.user as any, result.accessToken)
-                navigateAfterSignIn(result.user.role, result.accessToken)
+                const idToken = await getGoogleIdToken()
+                try {
+                    // Try without role — works for existing users
+                    result = await googleSignInWithIdToken(idToken)
+                } catch (e: any) {
+                    if (e?.response?.data?.message === 'role_required') {
+                        // New user — store credential and show role modal
+                        pendingCredential.current = { type: 'google', idToken }
+                        setPendingProvider('google')
+                        return
+                    }
+                    throw e
+                }
+            } else {
+                const { identityToken, fullName } = await getAppleCredential()
+                try {
+                    result = await appleSignInWithCredential(identityToken, fullName)
+                } catch (e: any) {
+                    if (e?.response?.data?.message === 'role_required') {
+                        pendingCredential.current = { type: 'apple', identityToken, fullName }
+                        setPendingProvider('apple')
+                        return
+                    }
+                    throw e
+                }
             }
+            await signIn(result.user as any, result.accessToken)
+            navigateAfterSignIn(result.user.role, result.accessToken)
         } catch (e: any) {
             const code = e?.code ?? ''
             if (code !== 'SIGN_IN_CANCELLED' && code !== 'IN_PROGRESS' && code !== 'ERR_REQUEST_CANCELED') {
                 toast.show({ message: e?.response?.data?.message ?? e?.message ?? 'Sign-in failed', type: 'error', style: 'top' })
             }
+        } finally {
+            setSocialLoading(false)
+        }
+    }
+
+    // Called after user picks a role in the modal (only for new users)
+    const handleRoleSelect = async (role: SocialRole) => {
+        const cred = pendingCredential.current
+        const provider = pendingProvider
+        pendingCredential.current = null
+        setPendingProvider(null)
+        if (!cred) return
+        setSocialLoading(true)
+        try {
+            let result
+            if (provider === 'google' && cred.type === 'google') {
+                result = await googleSignInWithIdToken(cred.idToken, role)
+            } else if (provider === 'apple' && cred.type === 'apple') {
+                result = await appleSignInWithCredential(cred.identityToken, cred.fullName, role)
+            } else {
+                return
+            }
+            await signIn(result.user as any, result.accessToken)
+            navigateAfterSignIn(result.user.role, result.accessToken)
+        } catch (e: any) {
+            toast.show({ message: e?.response?.data?.message ?? e?.message ?? 'Sign-in failed', type: 'error', style: 'top' })
         } finally {
             setSocialLoading(false)
         }
@@ -329,7 +381,7 @@ const SignIn = () => {
                 {/* Social Buttons */}
                 <View className='flex-row justify-center gap-4'>
                     <TouchableOpacity
-                        onPress={() => setPendingProvider('google')}
+                        onPress={() => handleSocialSignIn('google')}
                         disabled={socialLoading || loading}
                         className='bg-white border border-gray-200 rounded-2xl px-6 py-4 flex-row items-center justify-center flex-1'
                         activeOpacity={0.8}
@@ -338,7 +390,7 @@ const SignIn = () => {
                     </TouchableOpacity>
                     {Platform.OS === 'ios' && (
                         <TouchableOpacity
-                            onPress={() => setPendingProvider('apple')}
+                            onPress={() => handleSocialSignIn('apple')}
                             disabled={socialLoading || loading}
                             className='bg-white border border-gray-200 rounded-2xl px-6 py-4 flex-row items-center justify-center flex-1'
                             activeOpacity={0.8}

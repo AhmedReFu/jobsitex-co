@@ -22,7 +22,8 @@
       "Bash(Select-String -Pattern \"^android$|^ios$\")",
       "Bash(./gradlew signingReport)",
       "Bash(findstr \"react-native-maps\")",
-      "Bash(xargs ls)"
+      "Bash(xargs ls)",
+      "Bash(findstr /i \"url host stripe\")"
     ]
   }
 }

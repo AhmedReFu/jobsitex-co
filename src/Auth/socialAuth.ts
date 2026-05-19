@@ -7,8 +7,8 @@ import { IPA_BASE, GOOGLE_WEB_CLIENT_ID, GOOGLE_IOS_CLIENT_ID } from '@env'
 
 // Configure once at module load — safe to call before signIn()
 GoogleSignin.configure({
-  webClientId: GOOGLE_WEB_CLIENT_ID,   // required to get idToken for backend verification
-  iosClientId: GOOGLE_IOS_CLIENT_ID,   // required on iOS
+  webClientId: GOOGLE_WEB_CLIENT_ID,
+  iosClientId: GOOGLE_IOS_CLIENT_ID,
   offlineAccess: false,
 })
 
@@ -30,6 +30,11 @@ export interface SocialAuthResult {
   refreshToken: string
 }
 
+// Stored pending credentials so we can retry with a role after the modal
+export interface PendingGoogleCredential { type: 'google'; idToken: string }
+export interface PendingAppleCredential { type: 'apple'; identityToken: string; fullName?: string }
+export type PendingCredential = PendingGoogleCredential | PendingAppleCredential
+
 function mapUser(u: any): SocialAuthUser {
   return {
     id: u.id,
@@ -50,7 +55,10 @@ async function postToBackend(endpoint: string, body: Record<string, string>): Pr
   return { user: mapUser(d.user), accessToken: d.accessToken, refreshToken: d.refreshToken }
 }
 
-export async function googleSignIn(role?: SocialRole): Promise<SocialAuthResult> {
+// ─── Google ───────────────────────────────────────────────────────────────────
+
+// Step 1: show the Google account picker and return the idToken
+export async function getGoogleIdToken(): Promise<string> {
   await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true })
   const response = await GoogleSignin.signIn()
 
@@ -62,15 +70,21 @@ export async function googleSignIn(role?: SocialRole): Promise<SocialAuthResult>
 
   const idToken = response.data?.idToken
   if (!idToken) throw new Error('Google sign-in returned no ID token')
+  return idToken
+}
 
+// Step 2: exchange the idToken for a backend session (role only needed for new users)
+export async function googleSignInWithIdToken(idToken: string, role?: SocialRole): Promise<SocialAuthResult> {
   const body: Record<string, string> = { idToken }
   if (role) body.role = role
-
   return postToBackend('/auth/google/mobile', body)
 }
 
-export async function appleSignIn(role?: SocialRole): Promise<SocialAuthResult | null> {
-  if (Platform.OS !== 'ios') return null
+// ─── Apple ────────────────────────────────────────────────────────────────────
+
+// Step 1: show the Apple sheet and return the credential
+export async function getAppleCredential(): Promise<{ identityToken: string; fullName?: string }> {
+  if (Platform.OS !== 'ios') throw new Error('Apple Sign-In is only available on iOS')
 
   const credential = await AppleAuthentication.signInAsync({
     requestedScopes: [
@@ -85,9 +99,17 @@ export async function appleSignIn(role?: SocialRole): Promise<SocialAuthResult |
     .filter(Boolean)
     .join(' ') || undefined
 
-  const body: Record<string, string> = { identityToken: credential.identityToken }
+  return { identityToken: credential.identityToken, fullName }
+}
+
+// Step 2: exchange the Apple credential for a backend session
+export async function appleSignInWithCredential(
+  identityToken: string,
+  fullName?: string,
+  role?: SocialRole,
+): Promise<SocialAuthResult> {
+  const body: Record<string, string> = { identityToken }
   if (fullName) body.fullName = fullName
   if (role) body.role = role
-
   return postToBackend('/auth/apple/mobile', body)
 }

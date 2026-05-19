@@ -78,10 +78,7 @@ const DriverPayout = () => {
         // Not yet onboarded — start / resume onboarding
         res = await axios.post(
           `${IPA_BASE}/driver/stripe/onboarding-link`,
-          {
-            returnUrl: 'jobsitex://stripe/success',
-            refreshUrl: 'jobsitex://stripe/refresh',
-          },
+          {},
           {
             headers: { Authorization: `Bearer ${token}` },
             timeout: 15000,
