@@ -99,6 +99,13 @@
           "icon": "./assets/location-icon.png",
           "color": "#4CAF50"
         }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.co.jobsitex",
+          "enableGooglePay": false
+        }
       ]
     ],
     "extra": {

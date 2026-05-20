@@ -6,6 +6,10 @@ import * as Notifications from 'expo-notifications';
 import { IPA_BASE } from '@env';
 import { navigationRef } from '../Navigation/navigationRef';
 
+const EXPO_PROJECT_ID =
+  (Constants.expoConfig?.extra?.eas?.projectId as string | undefined) ??
+  'd9e06a04-deaf-4074-acb5-47a3f065ca3f';
+
 async function registerPushToken(authToken: string) {
   try {
     const { status: existing } = await Notifications.getPermissionsAsync();
@@ -15,16 +19,15 @@ async function registerPushToken(authToken: string) {
       finalStatus = status;
     }
     if (finalStatus !== 'granted') return;
-    const projectId: string | undefined = Constants.expoConfig?.extra?.eas?.projectId;
-    const { data: expoPushToken } = await Notifications.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined
-    );
+    const { data: expoPushToken } = await Notifications.getExpoPushTokenAsync({
+      projectId: EXPO_PROJECT_ID,
+    });
     await axios.post(`${IPA_BASE}/user/fcm-token`, { fcmToken: expoPushToken }, {
       headers: { Authorization: `Bearer ${authToken}` },
       timeout: 5000,
     });
-  } catch {
-    // non-critical — push notifications degrade gracefully
+  } catch (err) {
+    console.warn('[Push] Token registration failed:', err);
   }
 }
 

@@ -62,8 +62,9 @@ const DriverEarnings = () => {
   const weekJobs = completedJobs.filter((j) => new Date(j.updatedAt) >= startOfWeek)
   const monthJobs = completedJobs.filter((j) => new Date(j.updatedAt) >= startOfMonth)
 
-  const weekEarnings = weekJobs.reduce((s, j) => s + ((j.estimatedFare ?? 0) * 0.85), 0)
-  const monthEarnings = monthJobs.reduce((s, j) => s + ((j.estimatedFare ?? 0) * 0.85), 0)
+  const jobFare = (j: ApiJob) => (parseFloat(String(j.estimatedFare ?? '0')) || 0) * 0.85
+  const weekEarnings = weekJobs.reduce((s, j) => s + jobFare(j), 0)
+  const monthEarnings = monthJobs.reduce((s, j) => s + jobFare(j), 0)
 
   const displayEarnings = activeTab === 'week' ? weekEarnings : monthEarnings
   const displayJobs = activeTab === 'week' ? weekJobs.length : monthJobs.length
@@ -94,7 +95,7 @@ const DriverEarnings = () => {
           <View className='rounded-3xl p-8 items-center'>
             <Text className='text-gray-400 text-sm font-bold tracking-wider mb-2'>TOTAL EARNINGS</Text>
             <Text className='text-5xl font-bold text-gray-900 mb-2'>
-              ${(profile?.totalEarnings ?? 0).toFixed(2)}
+              ${(parseFloat(String(profile?.totalEarnings ?? '0')) || 0).toFixed(2)}
             </Text>
             <Text className='text-sm text-gray-400 font-semibold'>
               {completedJobs.length} total completed jobs
@@ -159,7 +160,7 @@ const DriverEarnings = () => {
                 <Text className='text-base font-bold text-gray-900'>Job #{job.id.slice(-6).toUpperCase()}</Text>
                 <Text className='text-sm text-gray-400'>{new Date(job.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
               </View>
-              <Text className='text-lg font-bold text-green-600'>${((job.estimatedFare ?? 0) * 0.85).toFixed(2)}</Text>
+              <Text className='text-lg font-bold text-green-600'>${jobFare(job).toFixed(2)}</Text>
             </View>
           ))}
           {completedJobs.length === 0 && (

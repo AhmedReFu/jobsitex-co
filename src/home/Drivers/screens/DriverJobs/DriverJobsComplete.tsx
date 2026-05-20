@@ -18,6 +18,7 @@ type JobDetail = {
   updatedAt: string
   truckType: { name: string } | null
   customer: { user: { fullName: string; avatar: string | null } } | null
+  payment: { status: string } | null
 }
 
 const DriverJobsComplete = () => {
@@ -67,9 +68,10 @@ const DriverJobsComplete = () => {
     )
   }
 
-  const fare = job.estimatedFare ?? 0
+  const fare = parseFloat(String(job.estimatedFare ?? '0')) || 0
   const platformFee = parseFloat((fare * 0.15).toFixed(2))
   const driverEarnings = parseFloat((fare - platformFee).toFixed(2))
+  const isPaid = job.payment?.status === 'COMPLETED'
   const deliveryDate = new Date(job.updatedAt).toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
   })
@@ -86,14 +88,18 @@ const DriverJobsComplete = () => {
           <Text className='text-xl font-bold text-gray-900 ml-2'>Job Complete</Text>
         </View>
 
-        {/* Success Banner */}
-        <View className='mx-4 mt-4 mb-4 bg-green-500 rounded-2xl p-5 flex-row items-center'>
+        {/* Status Banner */}
+        <View className={`mx-4 mt-4 mb-4 rounded-2xl p-5 flex-row items-center ${isPaid ? 'bg-green-500' : 'bg-orange-400'}`}>
           <View className='w-12 h-12 rounded-full bg-white/20 items-center justify-center mr-4'>
-            <Ionicons name='checkmark-circle' size={28} color='white' />
+            <Ionicons name={isPaid ? 'checkmark-circle' : 'time-outline'} size={28} color='white' />
           </View>
           <View className='flex-1'>
-            <Text className='text-white font-black text-lg'>Delivered Successfully</Text>
-            <Text className='text-green-100 text-sm mt-0.5'>{deliveryDate}</Text>
+            <Text className='text-white font-black text-lg'>
+              {isPaid ? 'Delivered & Paid' : 'Delivered — Awaiting Payment'}
+            </Text>
+            <Text className='text-white/80 text-sm mt-0.5'>
+              {isPaid ? deliveryDate : 'Customer has been notified to pay'}
+            </Text>
           </View>
         </View>
 
@@ -156,9 +162,18 @@ const DriverJobsComplete = () => {
             <View className='flex-row justify-between items-center py-4 mt-1'>
               <View>
                 <Text className='text-gray-900 font-black'>Your Earnings</Text>
-                <Text className='text-xs text-gray-400'>Paid to your Stripe account</Text>
+                <Text className='text-xs text-gray-400'>
+                  {isPaid ? 'Added to your balance' : 'Pending customer payment'}
+                </Text>
               </View>
-              <Text className='text-3xl font-black text-green-500'>${driverEarnings.toFixed(2)}</Text>
+              <View className='items-end'>
+                <Text className={`text-3xl font-black ${isPaid ? 'text-green-500' : 'text-orange-400'}`}>
+                  ${driverEarnings.toFixed(2)}
+                </Text>
+                {!isPaid && (
+                  <Text className='text-xs text-orange-400 font-semibold mt-0.5'>PENDING</Text>
+                )}
+              </View>
             </View>
           </View>
         </View>

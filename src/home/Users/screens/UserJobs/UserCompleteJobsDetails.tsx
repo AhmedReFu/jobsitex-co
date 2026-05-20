@@ -2,9 +2,10 @@ import { IPA_BASE } from '@env'
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { NavigationProp, useNavigation, useRoute } from '@react-navigation/native'
+import { useStripe } from '@stripe/stripe-react-native'
 import axios from 'axios'
 import React, { useEffect, useState } from 'react'
-import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { AuthStackParamList } from '../../../../Navigation/type'
 
@@ -25,6 +26,7 @@ type JobDetail = {
     user: { id: string; fullName: string; avatar: string | null }
   } | null
   review: { rating: number } | null
+  payment: { status: string } | null
 }
 
 const GREEN = '#43B047'
@@ -39,6 +41,8 @@ export default function UserCompleteJobsDetails() {
   const [job, setJob] = useState<JobDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [paying, setPaying] = useState(false)
+  const { initPaymentSheet, presentPaymentSheet } = useStripe()
 
   useEffect(() => {
     const fetchJob = async () => {
@@ -57,6 +61,54 @@ export default function UserCompleteJobsDetails() {
     }
     if (jobId) fetchJob()
   }, [jobId])
+
+  const handlePay = async () => {
+    if (!job) return
+    try {
+      setPaying(true)
+      const token = await AsyncStorage.getItem('vToken')
+
+      // 1. Create PaymentIntent on backend
+      const res = await axios.post(
+        `${IPA_BASE}/payment/job/${job.id}/intent`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 },
+      )
+      const { clientSecret } = res.data?.data ?? res.data ?? {}
+      if (!clientSecret) throw new Error('No client secret returned')
+
+      // 2. Initialise Stripe Payment Sheet
+      const { error: initError } = await initPaymentSheet({
+        paymentIntentClientSecret: clientSecret,
+        merchantDisplayName: 'JobsiteX',
+        style: 'automatic',
+      })
+      if (initError) throw new Error(initError.message)
+
+      // 3. Present the sheet — Stripe handles card entry
+      const { error: payError } = await presentPaymentSheet()
+      if (payError) {
+        if (payError.code !== 'Canceled') {
+          Alert.alert('Payment Failed', payError.message)
+        }
+        return
+      }
+
+      // 4. Success — refresh job so payment status updates
+      Alert.alert('Payment Successful', 'Your payment has been processed. The driver will receive their earnings shortly.')
+      const updated = await axios.get(`${IPA_BASE}/jobs/${job.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 10000,
+      })
+      setJob(updated.data?.data ?? job)
+    } catch (err: any) {
+      const raw = err?.response?.data?.message
+      const msg = Array.isArray(raw) ? raw.join('\n') : (raw ?? err?.message ?? 'Payment failed')
+      Alert.alert('Error', msg)
+    } finally {
+      setPaying(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -80,8 +132,9 @@ export default function UserCompleteJobsDetails() {
     )
   }
 
-  const fare = job.estimatedFare ?? 0
+  const fare = parseFloat(String(job.estimatedFare ?? '0')) || 0
   const platformFee = parseFloat((fare * 0.15).toFixed(2))
+  const isPaid = job.payment?.status === 'COMPLETED'
   const deliveryDate = new Date(job.updatedAt).toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
   })
@@ -188,16 +241,35 @@ export default function UserCompleteJobsDetails() {
       </ScrollView>
 
       {/* Bottom Sticky Buttons */}
-      {!job.review && (
+      {(!job.review || !isPaid) && (
         <View style={styles.bottomBar}>
-          <TouchableOpacity
-            activeOpacity={0.9}
-            style={styles.reviewBtn}
-            onPress={() => navigation.navigate('UserRateDriver', { jobId: job.id })}
-          >
-            <Ionicons name='star-outline' size={18} color='#fff' />
-            <Text style={styles.reviewText}>RATE DRIVER</Text>
-          </TouchableOpacity>
+          {!isPaid && (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={[styles.payBtn, paying && { opacity: 0.7 }]}
+              onPress={handlePay}
+              disabled={paying}
+            >
+              {paying
+                ? <ActivityIndicator color='#fff' />
+                : <>
+                    <Ionicons name='card-outline' size={18} color='#fff' />
+                    <Text style={styles.payText}>PAY ${fare.toFixed(2)}</Text>
+                  </>
+              }
+            </TouchableOpacity>
+          )}
+          {isPaid && !job.review && (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={styles.reviewBtn}
+              onPress={() => navigation.navigate('UserRateDriver', { jobId: job.id })}
+            >
+              <Ionicons name='star-outline' size={18} color='#fff' />
+              <Text style={styles.reviewText}>RATE DRIVER</Text>
+            </TouchableOpacity>
+          )}
+          {isPaid && job.review && null}
         </View>
       )}
     </SafeAreaView>
@@ -293,6 +365,8 @@ const styles = StyleSheet.create({
       android: { elevation: 10 },
     }),
   },
+  payBtn: { height: 54, borderRadius: 16, backgroundColor: ORANGE, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 10 },
+  payText: { color: '#fff', fontWeight: '900', letterSpacing: 0.6, fontSize: 16 },
   reviewBtn: { height: 54, borderRadius: 16, backgroundColor: GREEN, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   reviewText: { color: '#fff', fontWeight: '900', letterSpacing: 0.6 },
 })

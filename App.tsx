@@ -4,6 +4,8 @@ import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { Linking, Platform } from 'react-native';
+import { StripeProvider } from '@stripe/stripe-react-native';
+import { STRIPE_PUBLISHABLE_KEY } from '@env';
 import "./global.css";
 
 // Show notifications while app is in foreground
@@ -106,10 +108,10 @@ function AppNavigation() {
   }, []);
 
   // Handle Stripe onboarding deep links (jobsitex://stripe/success | jobsitex://stripe/refresh)
+  // Status is confirmed via Stripe webhook (account.updated) — no manual call needed here
   useEffect(() => {
     const handleUrl = (url: string) => {
       if (!navigationRef.isReady()) return;
-      // Match jobsitex://stripe/success or jobsitex://stripe/refresh
       if (url.startsWith('jobsitex://stripe/')) {
         navigationRef.navigate('DriverPayout');
       }
@@ -198,10 +200,12 @@ export default function App() {
     <AuthProvider>
       <UserProvider>
         <BookingProvider>
-          <NavigationContainer ref={navigationRef}>
-            <StatusBar style='dark' />
-            <AppNavigation />
-          </NavigationContainer>
+          <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} urlScheme="jobsitex">
+            <NavigationContainer ref={navigationRef}>
+              <StatusBar style='dark' />
+              <AppNavigation />
+            </NavigationContainer>
+          </StripeProvider>
         </BookingProvider>
       </UserProvider>
     </AuthProvider>

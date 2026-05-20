@@ -23,7 +23,10 @@
       "Bash(./gradlew signingReport)",
       "Bash(findstr \"react-native-maps\")",
       "Bash(xargs ls)",
-      "Bash(findstr /i \"url host stripe\")"
+      "Bash(findstr /i \"url host stripe\")",
+      "Bash(Find \"C:\\\\Users\\\\ruhul\\\\Desktop\\\\STA Projects\\\\jobsitex_backend\\\\src\" -type f -name \"*.dto.ts\")",
+      "Bash(Select-String -SimpleMatch \"user\\\\|update\" -List)",
+      "Bash(xargs grep -l \"DRIVER_APPROVED\\\\|STRIPE\\\\|notifyPayment\\\\|sendPush\")"
     ]
   }
 }

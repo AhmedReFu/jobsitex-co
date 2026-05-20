@@ -1,39 +1,67 @@
-const { withDangerousMod } = require('@expo/config-plugins')
+const {
+  withDangerousMod,
+  withAppBuildGradle,
+  withProjectBuildGradle,
+} = require('@expo/config-plugins')
 const path = require('path')
 const fs = require('fs')
 
-const withGoogleServicesAndroid = (config) => {
-  return withDangerousMod(config, [
+// Copy google-services.json into android/app/
+const withCopyGoogleServicesAndroid = (config) =>
+  withDangerousMod(config, [
     'android',
-    (config) => {
-      const src = path.resolve(config.modRequest.projectRoot, 'google-services.json')
-      const dest = path.resolve(config.modRequest.platformProjectRoot, 'app', 'google-services.json')
-      if (fs.existsSync(src)) {
-        fs.copyFileSync(src, dest)
-      }
-      return config
+    (cfg) => {
+      const src = path.resolve(cfg.modRequest.projectRoot, 'google-services.json')
+      const dest = path.resolve(cfg.modRequest.platformProjectRoot, 'app', 'google-services.json')
+      if (fs.existsSync(src)) fs.copyFileSync(src, dest)
+      return cfg
     },
   ])
-}
 
-const withGoogleServicesIos = (config) => {
-  return withDangerousMod(config, [
+// Copy GoogleService-Info.plist into ios/<ProjectName>/
+const withCopyGoogleServicesIos = (config) =>
+  withDangerousMod(config, [
     'ios',
-    (config) => {
-      const src = path.resolve(config.modRequest.projectRoot, 'GoogleService-Info.plist')
-      const projectName = config.modRequest.projectName
-      const dest = path.resolve(config.modRequest.platformProjectRoot, projectName, 'GoogleService-Info.plist')
-      if (fs.existsSync(src)) {
-        fs.copyFileSync(src, dest)
-      }
-      return config
+    (cfg) => {
+      const src = path.resolve(cfg.modRequest.projectRoot, 'GoogleService-Info.plist')
+      const dest = path.resolve(
+        cfg.modRequest.platformProjectRoot,
+        cfg.modRequest.projectName,
+        'GoogleService-Info.plist',
+      )
+      if (fs.existsSync(src)) fs.copyFileSync(src, dest)
+      return cfg
     },
   ])
-}
+
+// Add com.google.gms:google-services classpath to android/build.gradle
+const withGoogleServicesClasspath = (config) =>
+  withProjectBuildGradle(config, (cfg) => {
+    const classpath = "classpath('com.google.gms:google-services:4.4.2')"
+    if (!cfg.modResults.contents.includes('com.google.gms:google-services')) {
+      cfg.modResults.contents = cfg.modResults.contents.replace(
+        /dependencies\s*\{/,
+        `dependencies {\n        ${classpath}`,
+      )
+    }
+    return cfg
+  })
+
+// Apply com.google.gms.google-services plugin in android/app/build.gradle
+const withApplyGoogleServicesPlugin = (config) =>
+  withAppBuildGradle(config, (cfg) => {
+    if (!cfg.modResults.contents.includes('com.google.gms.google-services')) {
+      cfg.modResults.contents =
+        `apply plugin: 'com.google.gms.google-services'\n` + cfg.modResults.contents
+    }
+    return cfg
+  })
 
 const withGoogleServicesJson = (config) => {
-  config = withGoogleServicesAndroid(config)
-  config = withGoogleServicesIos(config)
+  config = withCopyGoogleServicesAndroid(config)
+  config = withCopyGoogleServicesIos(config)
+  config = withGoogleServicesClasspath(config)
+  config = withApplyGoogleServicesPlugin(config)
   return config
 }
 

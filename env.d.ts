@@ -18,4 +18,7 @@ declare module '@env' {
   // Google OAuth
   export const GOOGLE_WEB_CLIENT_ID: string
   export const GOOGLE_IOS_CLIENT_ID: string
+
+  //Stripe
+  export const STRIPE_PUBLISHABLE_KEY: string
 }

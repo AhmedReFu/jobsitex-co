@@ -9,6 +9,8 @@ import {
     ActivityIndicator,
     Alert,
     Image,
+    KeyboardAvoidingView,
+    Platform,
     ScrollView,
     Text,
     TextInput,
@@ -101,7 +103,8 @@ const DriverEditProfile = () => {
                 { text: 'OK', onPress: () => navigation.goBack() },
             ])
         } catch (err: any) {
-            const msg = err?.response?.data?.message ?? 'Failed to update profile'
+            const raw = err?.response?.data?.message
+            const msg = Array.isArray(raw) ? raw.join('\n') : (raw ?? 'Failed to update profile')
             Alert.alert('Error', msg)
         } finally {
             setLoading(false)
@@ -118,7 +121,12 @@ const DriverEditProfile = () => {
 
     return (
         <SafeAreaView className='flex-1 bg-gray-50' edges={['top']}>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <KeyboardAvoidingView
+                className='flex-1'
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+            >
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps='handled'>
                 {/* Header */}
                 <View className='flex-row items-center px-6 py-4'>
                     <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
@@ -206,7 +214,7 @@ const DriverEditProfile = () => {
             </ScrollView>
 
             {/* Save Button */}
-            <View className='absolute bottom-0 left-0 right-0 px-6 pb-8 bg-gray-50'>
+            <View className='px-6 pb-8 pt-2 bg-gray-50'>
                 <TouchableOpacity
                     onPress={handleSave}
                     className={`bg-green-500 py-5 rounded-2xl ${loading ? 'opacity-70' : ''}`}
@@ -220,6 +228,7 @@ const DriverEditProfile = () => {
                     )}
                 </TouchableOpacity>
             </View>
+            </KeyboardAvoidingView>
         </SafeAreaView>
     )
 }
